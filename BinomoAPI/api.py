@@ -5,6 +5,7 @@ import asyncio
 import time
 import urllib
 import datetime
+import json
 
 class BinomoAPI:
     def __init__(self, AuthToken: str, device_id: str, demo: bool = False):
@@ -19,12 +20,24 @@ class BinomoAPI:
         self.walletType
         self.config = Config()
         self.ref=1
+        self.assetRic = None
+        self.assetRic_default = "EURO"
+        self.assetList = None
+        with open("BinomoAPI/assets.json","r") as f:
+            self.assetList = json.load(f)
 
         self.api_host = f"{self.config.API_HOST}?authtoken={self.AuthToken}&device=web&device_id={self.device_id}&?v=2&vsn=2.0.0"
 
         # connect
-        self._connect()
-    async def _connect(self):
+        self.ws = WebSocketClient(self.api_host)
+        self.ws.run()
+        #time.sleep(3)
+        self.phxJoin()
+    def _GetAssetRic(self,asset):
+        for i in self.assetList:
+            if i["name"] == asset:
+                return i["ric"]
+    async def connect(self):
         self.ws = WebSocketClient(self.api_host)
         self.ws.run()
     def phxJoin(self):
@@ -43,15 +56,4 @@ class BinomoAPI:
     def sendWs(self,data):
         self.ws.send(data.replace("~~",str(self.ref)))
         self.ref+=1;self.lastSend = time.time()
-    def getHistoryMarket(self):
-        now = datetime.datetime.now().strftime("%Y-%m-%d")
-        return requests.get("https://api.binomo.com/platform/candles/"+urllib.parse.quote_plus(self.assetRic)+"/"+str(now)+"T00:00:00/60?locale=en",headers=self.headers).json()["data"]
-    def parseBidTime(self, m=1):
-        now = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:00")
-        bid = datetime.datetime.strptime(now, "%d/%m/%Y %H:%M:%S")+datetime.timedelta(minutes=m)
-        return str(int(time.mktime(bid.timetuple())))
-
-    def getBid(self, status, amount):
-        if int(datetime.datetime.now().strftime("%S")) < 30:bidTime=self.parseBidTime()
-        else:bidTime=self.parseBidTime(2)
-        self.sendWs('{"topic":"base","event":"create_deal","payload":{"amount":'+str(amount*100)+',"asset":"'+self.assetRic+'","asset_id":'+str(self.assetId)+',"asset_name":"'+self.currency+'","created_at":'+str(int(time.time()))+',"currency_iso":"IDR","deal_type":"'+self.walletType+'","expire_at":'+bidTime+',"option_type":"turbo","tournament_id":null,"trend":"'+status+'","is_state":false},"ref":"~~","join_ref":"~~"}')
+    
