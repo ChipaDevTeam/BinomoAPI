@@ -64,3 +64,29 @@ class BinomoAPI:
         self.ws.send(data.replace("~~",str(self.ref)))
         self.ref+=1;self.lastSend = time.time()
     
+    def Call(self, ric, duration, amount, is_demo=False):
+        duration = int(time.time()) + duration * 1_000_000
+        demo_str = None
+        if is_demo:
+            demo_str = "demo"
+        elif not is_demo:
+            demo_str = "real"
+        payload = {
+            "topic": "bo",
+            "event": "create",
+            "payload": {
+                "created_at": int(time.time()),
+                "ric": ric,
+                "deal_type": demo_str,
+                "expire_at": duration,
+                "option_type": "turbo",
+                "trend": "call",
+                "tournament_id": None,
+                "is_state": False,
+                "amount": amount
+            },
+            "ref": "36",
+            "join_ref": "9"
+        }
+        self.sendWs(json.dumps(payload))
+        
