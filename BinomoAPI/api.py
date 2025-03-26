@@ -89,4 +89,29 @@ class BinomoAPI:
             "join_ref": "9"
         }
         await self.ws.send(json.dumps(payload))
+    async def Put(self, ric, duration, amount, is_demo=False):
+        duration = int(time.time()) + duration * 1_000_000
+        demo_str = None
+        if is_demo:
+            demo_str = "demo"
+        elif not is_demo:
+            demo_str = "real"
+        payload = {
+            "topic": "bo",
+            "event": "create",
+            "payload": {
+                "created_at": int(time.time()),
+                "ric": ric,
+                "deal_type": demo_str,
+                "expire_at": duration,
+                "option_type": "turbo",
+                "trend": "put",
+                "tournament_id": None,
+                "is_state": False,
+                "amount": amount
+            },
+            "ref": self.ref+1,
+            "join_ref": "9"
+        }
+        await self.ws.send(json.dumps(payload))
         
