@@ -6,32 +6,41 @@ import time
 import urllib
 import datetime
 import json
+import logging
 
 class BinomoAPI:
-    def __init__(self, AuthToken: str, device_id: str, demo: bool = False):
-        self.ws = None
-        self.walletType = None
-        if demo:
-            self.walletType = "demo"
+    def __init__(self, AuthToken: str, device_id: str, demo: bool = False, AddLogging: bool = False):
+        self.logger = logging.getLogger(__name__) if AddLogging else None
+        if AddLogging:
+            logging.basicConfig(level=logging.DEBUG)
+            self.logger.setLevel(logging.DEBUG)
+            handler = logging.StreamHandler()
+            handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+            self.logger.addHandler(handler)
         else:
-            self.walletType = "real"
+            self.logger = None
+
+        self.ws = None
+        self.walletType = "demo" if demo else "real"
         self.AuthToken = AuthToken
         self.device_id = device_id
-        self.walletType
         self.config = Config()
-        self.ref=1
-        self.assetRic = None
+        self.ref = 1
         self.assetRic_default = "EURO"
-        self.assetList = None
-        with open("BinomoAPI/assets.json","r") as f:
+
+        with open("BinomoAPI/assets.json", "r") as f:
             self.assetList = json.load(f)
 
         self.api_host = f"{self.config.API_HOST}?authtoken={self.AuthToken}&device=web&device_id={self.device_id}&?v=2&vsn=2.0.0"
 
-        # connect
+        # Connect
+        if self.logger:
+            self.logger.info("Connecting to Binomo API")
         self.ws = WebSocketClient(self.api_host)
         self.ws.run()
-        #time.sleep(3)
+        if self.logger:
+            self.logger.info("Connected to Binomo API")
+
         self.phxJoin()
     def _GetAssetRic(self,asset):
         for i in self.assetList:
@@ -46,7 +55,8 @@ class BinomoAPI:
         self.sendWs('{"topic":"base","event":"phx_join","payload":{},"ref":"~~","join_ref":"~~"}')
         self.sendWs('{"topic":"cfd_zero_spread","event":"phx_join","payload":{},"ref":"~~","join_ref":"~~"}')
         self.sendWs('{"topic":"marathon","event":"phx_join","payload":{},"ref":"~~","join_ref":"~~"}')
-        self.sendWs('{"topic":"asset:'+self.assetRic+'","event":"phx_join","payload":{},"ref":"~~","join_ref":"~~"}')
+        self.sendWs('{"topic":"asset:'+self.assetRic_default+'","event":"phx_join","payload":{},"ref":"~~","join_ref":"~~"}')
+        self.logger.info("Sent all the requests")
     async def Getbalance(self):
         headers = {'device-id': self.device_id, 'device-type': 'web','authorization-token': self.AuthToken, 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/97.0.4692.71 Safari/537.36'}
         res = requests.get("https://api.binomo.com/bank/v1/read?locale=en",headers=headers).json()

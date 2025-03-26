@@ -21,5 +21,5 @@ class WebSocketClient:
         except websockets.exceptions.ConnectionClosed:
             print("Connection closed")
 
-    def run(self):
-        asyncio.run(self.connect())
+    async def run(self):
+        await self.connect()
