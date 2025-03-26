@@ -1,0 +1,17 @@
+{
+  "topic": "bo",
+  "event": "create",
+  "payload": {
+    "created_at": 1743015263405,
+    "ric": "Z-CRY/IDX",
+    "deal_type": "demo",
+    "expire_at": 1743015300,
+    "option_type": "turbo",
+    "trend": "call",
+    "tournament_id": null,
+    "is_state": false,
+    "amount": 80000
+  },
+  "ref": "36",
+  "join_ref": "9"
+}
