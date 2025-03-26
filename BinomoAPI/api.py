@@ -64,7 +64,7 @@ class BinomoAPI:
         self.ws.send(data.replace("~~",str(self.ref)))
         self.ref+=1;self.lastSend = time.time()
     
-    def Call(self, ric, duration, amount, is_demo=False):
+    async def Call(self, ric, duration, amount, is_demo=False):
         duration = int(time.time()) + duration * 1_000_000
         demo_str = None
         if is_demo:
@@ -85,8 +85,8 @@ class BinomoAPI:
                 "is_state": False,
                 "amount": amount
             },
-            "ref": "36",
+            "ref": self.ref+1,
             "join_ref": "9"
         }
-        self.sendWs(json.dumps(payload))
+        await self.ws.send(json.dumps(payload))
         
