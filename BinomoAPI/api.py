@@ -1,10 +1,7 @@
 from BinomoAPI.config.conf import Config
 from BinomoAPI.wss.client import WebSocketClient
 import requests
-import asyncio
 import time
-import urllib
-import datetime
 import json
 import logging
 
