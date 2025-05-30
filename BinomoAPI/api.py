@@ -6,6 +6,78 @@ import json
 import logging
 
 class BinomoAPI:
+    @staticmethod
+    def login(email: str, password: str, device_id: str = "1b6290ce761c82f3a97189d35d2ed138"):
+        """
+        Login to Binomo API and return authentication data.
+        
+        Args:
+            email (str): User email
+            password (str): User password
+            device_id (str): Device ID (optional, uses default if not provided)
+            
+        Returns:
+            dict: Dictionary containing 'authtoken' and 'user_id' if successful
+            None: If login failed
+        """
+        url = 'https://api.binomo.com/passport/v2/sign_in?locale=en'
+        
+        headers = {
+            'accept': 'application/json, text/plain, */*',
+            'accept-language': 'en-US,en;q=0.9',
+            'cache-control': 'no-cache, no-store, must-revalidate',
+            'content-type': 'application/json',
+            'device-id': device_id,
+            'device-type': 'web',
+            'origin': 'https://binomo.com',
+            'priority': 'u=1, i',
+            'referer': 'https://binomo.com/',
+            'sec-ch-ua': '"Not A(Brand";v="8", "Chromium";v="132", "Opera GX";v="117"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"macOS"',
+            'sec-fetch-dest': 'empty',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-site': 'same-site',
+            'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 OPR/117.0.0.0',
+            'user-timezone': 'America/Santiago'
+        }
+        
+        data_raw = {
+            "email": email,
+            "password": password,
+        }
+        
+        try:
+            response = requests.post(url, headers=headers, json=data_raw)
+            response.raise_for_status()
+            
+            response_data = response.json()
+            
+            # Check if login was successful and return the data
+            if 'data' in response_data and 'authtoken' in response_data['data']:
+                return response_data['data']
+            else:
+                print("Login failed: Invalid response format")
+                return None
+                
+        except requests.exceptions.HTTPError as errh:
+            print(f"Http Error: {errh}")
+            if hasattr(errh.response, 'content'):
+                print(f"Response content: {errh.response.content}")
+            return None
+        except requests.exceptions.ConnectionError as errc:
+            print(f"Error Connecting: {errc}")
+            return None
+        except requests.exceptions.Timeout as errt:
+            print(f"Timeout Error: {errt}")
+            return None
+        except requests.exceptions.RequestException as err:
+            print(f"Request Error: {err}")
+            return None
+        except json.JSONDecodeError as err:
+            print(f"JSON Decode Error: {err}")
+            return None
+
     def __init__(self, AuthToken: str, device_id: str, demo: bool = False, AddLogging: bool = False):
         self.logger = logging.getLogger(__name__) if AddLogging else None
         if AddLogging:
@@ -114,4 +186,4 @@ class BinomoAPI:
             "join_ref": "9"
         }
         await self.ws.send(json.dumps(payload))
-        
+
