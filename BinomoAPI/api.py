@@ -13,6 +13,7 @@ import requests
 from typing import Optional, Dict, Any, List, Union
 from pathlib import Path
 
+import BinomoAPI.global_values as gv
 from BinomoAPI.config.conf import Config
 from BinomoAPI.wss.client import WebSocketClient
 from BinomoAPI.exceptions import (
@@ -89,10 +90,11 @@ class BinomoAPI:
                 login_response = LoginResponse.from_dict(response_data['data'])
                 
                 # Store the session in the login response for later use
+                gv.session = session
                 login_response._session = session
                 
                 # Test the session immediately to ensure it works
-                BinomoAPI._test_balance_with_session(session, login_response.authtoken, device_id)
+                #BinomoAPI._test_balance_with_session(session, login_response.authtoken, device_id)
                 
                 return login_response
             else:
@@ -185,6 +187,8 @@ class BinomoAPI:
             if response.status_code == 200:
                 print("SUCCESS: Balance request worked immediately after login!")
                 print(f"Balance data: {response.json()}")
+                #gv.balance_data = response.json()  # Store balance data globally
+                return response.json()  
             else:
                 print(f"FAILED: Balance request failed with status {response.status_code}")
                 
@@ -643,7 +647,7 @@ class BinomoAPI:
             
         # Check balance
         try:
-            balance = await self.get_balance(account_type)
+            balance = await self.Getbalance()
             if balance.amount < amount:
                 raise InsufficientBalanceError(
                     f"Insufficient balance: {balance.amount} < {amount}"
@@ -740,6 +744,8 @@ class BinomoAPI:
         
     async def Getbalance(self) -> float:
         """Legacy method - use get_balance instead."""
-        balance = await self.get_balance()
-        return balance.amount
+        #time.sleep(1)
+        print(f"Getting balance with session: {gv.session}, auth_token: {self._auth_token}, device_id: {self._device_id}")
+        balance = self._test_balance_with_session(gv.session, self._auth_token, self._device_id)
+        return balance
 

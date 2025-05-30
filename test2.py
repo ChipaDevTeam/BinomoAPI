@@ -25,17 +25,12 @@ async def main():
         login_response=login_response,
         device_id=login_response.user_id,
         demo=True,
-        enable_logging=True,  # Re-enable logging to see headers
-        log_level=logging.DEBUG
     )
     print("BinomoAPI client initialized successfully")
     
     try:
-        balance = await api.get_balance("demo")
-        print(f"Demo Balance: ${balance.amount:.2f} {balance.currency}")
-        
-        real_balance = await api.get_balance("real")
-        print(f"Real Balance: ${real_balance.amount:.2f} {real_balance.currency}")
+        balance = await api.Getbalance()
+        print(f"Demo Balance: ${balance}")
     except Exception as e:
         print(f"Balance error: {e}")
     
