@@ -11,6 +11,7 @@ class LoginResponse:
     """Response data from login request"""
     authtoken: str
     user_id: str
+    _session: Optional[object] = None  # Store session for reuse
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'LoginResponse':

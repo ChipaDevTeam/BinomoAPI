@@ -58,9 +58,19 @@ class BinomoAPI:
         if not email or not password:
             raise InvalidParameterError("Email and password are required")
             
+        # Create a session for the login process
+        session = requests.Session()
+        
+        # First, visit the main site to establish session (this seems to be important)
+        try:
+            session.get('https://binomo.com/', timeout=10)
+        except:
+            pass  # Continue even if this fails
+            
         headers = DEFAULT_HEADERS.copy()
         headers.update({
             'device-id': device_id,
+            'device-type': 'web',  # Ensure this is set
             'user-timezone': 'UTC'  # More generic than hardcoded timezone
         })
         
@@ -70,13 +80,21 @@ class BinomoAPI:
         }
         
         try:
-            response = requests.post(LOGIN_URL, headers=headers, json=payload, timeout=30)
+            response = session.post(LOGIN_URL, headers=headers, json=payload, timeout=30)
             response.raise_for_status()
             
             response_data = response.json()
             
             if 'data' in response_data and 'authtoken' in response_data['data']:
-                return LoginResponse.from_dict(response_data['data'])
+                login_response = LoginResponse.from_dict(response_data['data'])
+                
+                # Store the session in the login response for later use
+                login_response._session = session
+                
+                # Test the session immediately to ensure it works
+                BinomoAPI._test_balance_with_session(session, login_response.authtoken, device_id)
+                
+                return login_response
             else:
                 raise AuthenticationError("Invalid response format from login endpoint")
                 
@@ -103,13 +121,84 @@ class BinomoAPI:
         except Exception as e:
             raise BinomoAPIException(f"Unexpected error during login: {e}")
 
+    @staticmethod
+    def create_from_login(
+        login_response: LoginResponse, 
+        device_id: str = DEFAULT_DEVICE_ID,
+        demo: bool = True,
+        enable_logging: bool = False,
+        log_level: int = logging.INFO
+    ) -> 'BinomoAPI':
+        """
+        Create BinomoAPI instance from login response, maintaining session continuity.
+        
+        Args:
+            login_response: LoginResponse object from login method
+            device_id: Device ID used for login
+            demo: Use demo account if True, real account if False
+            enable_logging: Enable logging if True
+            log_level: Logging level
+            
+        Returns:
+            BinomoAPI instance with maintained session
+        """
+        return BinomoAPI(
+            auth_token=login_response.authtoken,
+            device_id=device_id,
+            demo=demo,
+            enable_logging=enable_logging,
+            log_level=log_level,
+            login_session=getattr(login_response, '_session', None)
+        )
+
+    @staticmethod
+    def _test_balance_with_session(session: requests.Session, auth_token: str, device_id: str) -> None:
+        """Test balance request immediately after login with the same session."""
+        headers = {
+            'accept': 'application/json, text/plain, */*',
+            'accept-encoding': 'gzip, deflate, br, zstd',
+            'accept-language': 'en-US,en;q=0.9',
+            'authorization-token': auth_token,
+            'cache-control': 'no-cache',
+            'cookie': f'authtoken={auth_token}; device_type=web; device_id={device_id}',
+            'device-id': device_id,
+            'device-type': 'web',
+            'origin': 'https://binomo.com',
+            'pragma': 'no-cache',
+            'priority': 'u=1, i',
+            'referer': 'https://binomo.com/',
+            'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"macOS"',
+            'sec-fetch-dest': 'empty',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-site': 'same-site',
+            'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'user-timezone': 'America/Santiago'
+        }
+        
+        try:
+            response = session.get(BALANCE_URL, headers=headers, timeout=30)
+            print(f"Immediate balance response status: {response.status_code}")
+            print(f"Immediate balance response text: {response.text[:200]}...")
+            
+            if response.status_code == 200:
+                print("SUCCESS: Balance request worked immediately after login!")
+                print(f"Balance data: {response.json()}")
+            else:
+                print(f"FAILED: Balance request failed with status {response.status_code}")
+                
+        except Exception as e:
+            print(f"Exception during immediate balance test: {e}")
+
     def __init__(
         self, 
         auth_token: str, 
         device_id: str, 
         demo: bool = True, 
         enable_logging: bool = False,
-        log_level: int = logging.INFO
+        log_level: int = logging.INFO,
+        login_session: Optional[requests.Session] = None
     ) -> None:
         """
         Initialize BinomoAPI client.
@@ -120,6 +209,7 @@ class BinomoAPI:
             demo: Use demo account if True, real account if False
             enable_logging: Enable logging if True
             log_level: Logging level (default: INFO)
+            login_session: Session from login to maintain authentication state
             
         Raises:
             InvalidParameterError: If auth_token or device_id is empty
@@ -128,25 +218,96 @@ class BinomoAPI:
         if not auth_token or not device_id:
             raise InvalidParameterError("auth_token and device_id are required")
             
-        # Initialize logger
-        self._setup_logging(enable_logging, log_level)
-        
         # Instance variables
         self._auth_token = auth_token
         self._device_id = device_id
         self._account_type = ACCOUNT_TYPES["DEMO"] if demo else ACCOUNT_TYPES["REAL"]
-        self._config = Config()
         self._ref_counter = 1
         self._default_asset_ric = DEFAULT_ASSET_RIC
         self._ws_client: Optional[WebSocketClient] = None
         self._last_send_time = 0
         
-        # Load assets
+        # Initialize logger first
+        self._setup_logging(enable_logging, log_level)
+        
+        # Use login session if provided, otherwise create fresh session
+        if login_session:
+            self._session = login_session
+            if self.logger:
+                self.logger.info("Using provided login session for session continuity")
+        else:
+            self._session = requests.Session()
+            if self.logger:
+                self.logger.info("Creating fresh session (no login session provided)")
+        
+        # FIXED: Now properly maintains session continuity
+        # Load configuration and assets
+        self._load_config()
         self._assets = self._load_assets()
         
-        # Initialize WebSocket connection
+        # Initialize WebSocket client (don't connect immediately)
         self._connect_websocket()
         
+        if self.logger:
+            self.logger.info(f"BinomoAPI initialized successfully with {len(self._assets)} assets")
+        
+    def _verify_session_immediately(self) -> None:
+        """Verify the session works immediately after initialization."""
+        try:
+            headers = {
+                'accept': 'application/json, text/plain, */*',
+                'accept-encoding': 'gzip, deflate, br, zstd',
+                'accept-language': 'en-US,en;q=0.9',
+                'authorization-token': self._auth_token,
+                'cache-control': 'no-cache',
+                'cookie': f'authtoken={self._auth_token}; device_type=web; device_id={self._device_id}',
+                'device-id': self._device_id,
+                'device-type': 'web',
+                'origin': 'https://binomo.com',
+                'pragma': 'no-cache',
+                'priority': 'u=1, i',
+                'referer': 'https://binomo.com/',
+                'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+                'sec-ch-ua-mobile': '?0',
+                'sec-ch-ua-platform': '"macOS"',
+                'sec-fetch-dest': 'empty',
+                'sec-fetch-mode': 'cors',
+                'sec-fetch-site': 'same-site',
+                'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                'user-timezone': 'America/Santiago'
+            }
+            
+            response = self._session.get(BALANCE_URL, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                if self.logger:
+                    self.logger.info("✅ Session verification successful!")
+            else:
+                if self.logger:
+                    self.logger.warning(f"⚠️ Session verification failed with status {response.status_code}")
+                    
+        except Exception as e:
+            if self.logger:
+                self.logger.warning(f"Session verification exception: {e}")
+                
+    def _establish_session(self) -> None:
+        """Establish session cookies that might be needed for API calls."""
+        try:
+            # First, make a request to the main site to establish session
+            self._session.get('https://binomo.com/', timeout=10)
+            
+            # Set authentication cookies in session
+            self._session.cookies.set('authtoken', self._auth_token, domain='.binomo.com')
+            self._session.cookies.set('device_type', 'web', domain='.binomo.com')
+            self._session.cookies.set('device_id', self._device_id, domain='.binomo.com')
+            
+            if self.logger:
+                self.logger.debug(f"Session cookies established: {self._session.cookies}")
+                
+        except Exception as e:
+            if self.logger:
+                self.logger.warning(f"Could not establish session cookies: {e}")
+            
     def _setup_logging(self, enable_logging: bool, log_level: int) -> None:
         """Setup logging configuration."""
         if enable_logging:
@@ -162,6 +323,20 @@ class BinomoAPI:
                 self.logger.addHandler(handler)
         else:
             self.logger = None
+    
+    def _load_config(self) -> None:
+        """Load configuration from config manager."""
+        try:
+            from BinomoAPI.config_manager import get_config
+            self._config = get_config()
+            if self.logger:
+                self.logger.debug("Configuration loaded successfully")
+        except ImportError:
+            # Fallback if config manager is not available
+            from BinomoAPI.config.conf import Config
+            self._config = Config()
+            if self.logger:
+                self.logger.warning("Using fallback configuration")
             
     def _load_assets(self) -> List[Asset]:
         """Load available assets from JSON file."""
@@ -181,8 +356,18 @@ class BinomoAPI:
             
     def _connect_websocket(self) -> None:
         """Establish WebSocket connection."""
+        # Get API host from config, with fallback
+        try:
+            if hasattr(self._config, 'API_HOST'):
+                api_host_base = self._config.API_HOST
+            else:
+                # Fallback to default WebSocket URL
+                api_host_base = "wss://ws.binomo.com/"
+        except:
+            api_host_base = "wss://ws.binomo.com/"
+            
         api_host = (
-            f"{self._config.API_HOST}?authtoken={self._auth_token}"
+            f"{api_host_base}?authtoken={self._auth_token}"
             f"&device=web&device_id={self._device_id}&?v=2&vsn=2.0.0"
         )
         
@@ -298,18 +483,46 @@ class BinomoAPI:
             ConnectionError: If unable to connect to API
             BinomoAPIException: If API returns unexpected response
         """
+        # Small delay to ensure session is fully established
+        import asyncio
+        await asyncio.sleep(0.1)
+        
         if account_type is None:
             account_type = self._account_type
             
         headers = {
+            'accept': 'application/json, text/plain, */*',
+            'accept-encoding': 'gzip, deflate, br, zstd',
+            'accept-language': 'en-US,en;q=0.9',
+            'authorization-token': self._auth_token,
+            'cache-control': 'no-cache',
+            'cookie': f'authtoken={self._auth_token}; device_type=web; device_id={self._device_id}',
             'device-id': self._device_id,
             'device-type': 'web',
-            'authorization-token': self._auth_token,
-            'User-Agent': DEFAULT_HEADERS['user-agent']
+            'origin': 'https://binomo.com',
+            'pragma': 'no-cache',
+            'priority': 'u=1, i',
+            'referer': 'https://binomo.com/',
+            'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"macOS"',
+            'sec-fetch-dest': 'empty',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-site': 'same-site',
+            'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'user-timezone': 'America/Santiago'
         }
         
         try:
-            response = requests.get(BALANCE_URL, headers=headers, timeout=30)
+            if self.logger:
+                self.logger.debug(f"Making balance request with headers: {headers}")
+            response = self._session.get(BALANCE_URL, headers=headers, timeout=30)
+            
+            if self.logger:
+                self.logger.debug(f"Balance response status: {response.status_code}")
+                self.logger.debug(f"Balance response headers: {response.headers}")
+                self.logger.debug(f"Balance response text: {response.text}")
+            
             response.raise_for_status()
             
             response_data = response.json()
