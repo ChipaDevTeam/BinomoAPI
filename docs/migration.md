@@ -1,5 +1,13 @@
 # Migration Guide
 
+## Support
+donate in paypal: [Paypal.me](https://paypal.me/ChipaCL?country.x=CL&locale.x=en_US) <br> 
+help us in patreon: [Patreon](https://patreon.com/VigoDEV?utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_creator&utm_content=copyLink) <br>
+👉 [Join us on Discord](https://discord.gg/p7YyFqSmAz) <br>
+[Get our services here](https://chipa.tech/shop/) <br>
+[Let us create your bot here](https://chipa.tech/product/create-your-bot/) <br>
+[Contact us in Telegram](https://t.me/ChipaDevTeam)
+
 Guide for migrating from older versions of BinomoAPI to the latest version.
 
 ## 🔄 Version 2.0 to 3.0
