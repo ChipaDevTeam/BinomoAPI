@@ -530,43 +530,52 @@ class BinomoAPI:
             return []
             
     def _connect_websocket(self) -> None:
-        """Establish WebSocket connection with enhanced authentication."""
+        """Establish WebSocket connection using FIXED session-based authentication."""
         try:
             if self.logger:
-                self.logger.info("Establishing WebSocket connection with enhanced authentication")
+                self.logger.info("Establishing WebSocket connection with FIXED session authentication")
                 
-            # Create enhanced WebSocket client with multiple auth strategies
-            self._ws_client = EnhancedWebSocketClient(
+            # Use the FIXED WebSocket client with session cookies
+            self._ws_client = WebSocketClient(
                 auth_token=self._auth_token,
                 device_id=self._device_id,
-                session=getattr(self, '_session', None)
+                session=getattr(self, '_session', None)  # Pass the session for cookies!
             )
             
             if self.logger:
-                self.logger.info("Enhanced WebSocket client initialized successfully")
+                self.logger.info("✅ WebSocket client initialized with FIXED session-based auth")
+                self.logger.info(f"   Auth token: {self._auth_token[:20] if self._auth_token else 'None'}...")
+                self.logger.info(f"   Device ID: {self._device_id}")
+                self.logger.info(f"   Session: {'Available' if hasattr(self, '_session') else 'None'}")
                 
         except Exception as e:
-            raise ConnectionError(f"Failed to initialize enhanced WebSocket client: {e}")
+            raise ConnectionError(f"Failed to initialize WebSocket client: {e}")
             
     async def _ensure_websocket_connection(self) -> None:
-        """Ensure WebSocket connection is established with fallback authentication."""
+        """Ensure WebSocket connection is established using FIXED session method."""
         if not self._ws_client:
             raise ConnectionError("WebSocket client not initialized")
             
-        # If not connected, try enhanced authentication
+        # If not connected, try to connect with FIXED session method
         if not hasattr(self._ws_client, '_connected') or not self._ws_client._connected:
             if self.logger:
-                self.logger.info("Attempting WebSocket connection with authentication fallback...")
+                self.logger.info("Attempting WebSocket connection with FIXED session authentication...")
             
-            success = await self._ws_client.connect_with_fallback()
-            if not success:
-                raise ConnectionError("All WebSocket authentication strategies failed")
-            
-            if self.logger:
-                self.logger.info("✅ WebSocket connection established successfully!")
-            
-            # Join required channels after connection
-            await self._join_channels_async()
+            try:
+                success = await self._ws_client.connect()
+                if not success:
+                    raise ConnectionError("WebSocket connection failed with FIXED method")
+                
+                if self.logger:
+                    self.logger.info("🎉 WebSocket connection established successfully with FIX!")
+                
+                # Join required channels after connection
+                await self._join_channels_async()
+                
+            except Exception as e:
+                if self.logger:
+                    self.logger.error(f"❌ WebSocket connection failed: {e}")
+                raise ConnectionError(f"WebSocket connection failed: {e}")
             
     async def _join_channels_async(self) -> None:
         """Join required WebSocket channels asynchronously."""
@@ -630,10 +639,13 @@ class BinomoAPI:
         """
         return self._assets.copy()
         
-    async def connect(self) -> None:
+    async def connect(self) -> bool:
         """
         Reconnect WebSocket if disconnected.
         
+        Returns:
+            bool: True if connection successful, False otherwise
+            
         Raises:
             ConnectionError: If unable to establish connection
         """
@@ -643,6 +655,7 @@ class BinomoAPI:
                 self.logger.warning("Session validation failed before WebSocket connection")
             
         await self._ensure_websocket_connection()
+        return True
         
     async def get_balance(self, account_type: Optional[str] = None) -> Balance:
         """
