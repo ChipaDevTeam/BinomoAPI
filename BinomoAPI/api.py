@@ -16,6 +16,7 @@ from pathlib import Path
 import BinomoAPI.global_values as gv
 from BinomoAPI.config.conf import Config
 from BinomoAPI.wss.client import WebSocketClient
+from BinomoAPI.wss.enhanced_client import EnhancedWebSocketClient
 from BinomoAPI.exceptions import (
     BinomoAPIException, 
     AuthenticationError, 
@@ -84,6 +85,10 @@ class BinomoAPI:
             response = session.post(LOGIN_URL, headers=headers, json=payload, timeout=30)
             response.raise_for_status()
             
+            # Debug: Print cookies after login response
+            print(f"Login response cookies: {dict(session.cookies)}")
+            print(f"Login response headers: {dict(response.headers)}")
+            
             response_data = response.json()
             
             if 'data' in response_data and 'authtoken' in response_data['data']:
@@ -93,8 +98,33 @@ class BinomoAPI:
                 gv.session = session
                 login_response._session = session
                 
-                # Test the session immediately to ensure it works
-                #BinomoAPI._test_balance_with_session(session, login_response.authtoken, device_id)
+                # Set additional session headers that might be needed for persistence
+                session.headers.update({
+                    'authorization-token': login_response.authtoken,
+                    'device-id': device_id,
+                    'device-type': 'web',
+                    'origin': 'https://binomo.com',
+                    'referer': 'https://binomo.com/'
+                })
+                
+                # Set cookies manually in the session for persistence
+                session.cookies.set('authtoken', login_response.authtoken, domain='.binomo.com')
+                session.cookies.set('device_type', 'web', domain='.binomo.com')
+                session.cookies.set('device_id', device_id, domain='.binomo.com')
+                
+                # Capture the exact working session state
+                print(f"Working session cookies after login: {dict(session.cookies)}")
+                print(f"Working session headers: {dict(session.headers)}")
+                
+                # Test the session immediately to ensure it works and capture balance
+                test_result = BinomoAPI._test_balance_with_session(session, login_response.authtoken, device_id)
+                if test_result is not None:
+                    print(f"✅ Login test balance successful: {test_result}")
+                    # Store the balance in the login response for immediate use
+                    login_response.balance = test_result
+                else:
+                    print("⚠️ Login test balance failed, but continuing...")
+                    login_response.balance = None
                 
                 return login_response
             else:
@@ -144,7 +174,7 @@ class BinomoAPI:
         Returns:
             BinomoAPI instance with maintained session
         """
-        return BinomoAPI(
+        api = BinomoAPI(
             auth_token=login_response.authtoken,
             device_id=device_id,
             demo=demo,
@@ -152,17 +182,32 @@ class BinomoAPI:
             log_level=log_level,
             login_session=getattr(login_response, '_session', None)
         )
+        
+        # If login response has balance, cache it immediately
+        if hasattr(login_response, 'balance') and login_response.balance is not None:
+            import time
+            api._cached_balance = login_response.balance
+            api._cached_balance_timestamp = time.time()
+            if enable_logging:
+                balance_dollars = login_response.balance / 100
+                print(f"✅ Pre-cached balance from login: ${balance_dollars}")
+        
+        return api
 
     @staticmethod
-    def _test_balance_with_session(session: requests.Session, auth_token: str, device_id: str) -> None:
+    def _test_balance_with_session(session: requests.Session, auth_token: str, device_id: str) -> Optional[float]:
         """Test balance request immediately after login with the same session."""
-        headers = {
+        # Debug: Print session cookies
+        print(f"Session cookies: {dict(session.cookies)}")
+        
+        # Use session's default headers but override specific ones
+        headers = session.headers.copy()
+        headers.update({
             'accept': 'application/json, text/plain, */*',
             'accept-encoding': 'gzip, deflate, br, zstd',
             'accept-language': 'en-US,en;q=0.9',
             'authorization-token': auth_token,
             'cache-control': 'no-cache',
-            'cookie': f'authtoken={auth_token}; device_type=web; device_id={device_id}',
             'device-id': device_id,
             'device-type': 'web',
             'origin': 'https://binomo.com',
@@ -171,29 +216,47 @@ class BinomoAPI:
             'referer': 'https://binomo.com/',
             'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
             'sec-ch-ua-mobile': '?0',
-            'sec-ch-ua-platform': '"macOS"',
+            'sec-ch-ua-platform': '"Windows"',
             'sec-fetch-dest': 'empty',
             'sec-fetch-mode': 'cors',
             'sec-fetch-site': 'same-site',
-            'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-            'user-timezone': 'America/Santiago'
-        }
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'user-timezone': 'UTC'
+        })
         
         try:
+            # Let the session handle cookies automatically
             response = session.get(BALANCE_URL, headers=headers, timeout=30)
             print(f"Immediate balance response status: {response.status_code}")
             print(f"Immediate balance response text: {response.text[:200]}...")
             
             if response.status_code == 200:
                 print("SUCCESS: Balance request worked immediately after login!")
-                print(f"Balance data: {response.json()}")
-                #gv.balance_data = response.json()  # Store balance data globally
-                return response.json()  
+                balance_data = response.json()
+                print(f"Balance data: {balance_data}")
+                
+                # Try to extract balance value from response
+                if 'data' in balance_data and isinstance(balance_data['data'], list):
+                    for account in balance_data['data']:
+                        if account.get('account_type') == 'demo':  # Look for demo account
+                            balance_value = account.get('balance', 0)
+                            print(f"Found demo balance: {balance_value}")
+                            return float(balance_value)
+                
+                # If no demo account found, return first available balance
+                if 'data' in balance_data and isinstance(balance_data['data'], list) and balance_data['data']:
+                    balance_value = balance_data['data'][0].get('balance', 0)
+                    print(f"Using first available balance: {balance_value}")
+                    return float(balance_value)
+                    
+                return None
             else:
                 print(f"FAILED: Balance request failed with status {response.status_code}")
+                return None
                 
         except Exception as e:
             print(f"Exception during immediate balance test: {e}")
+            return None
 
     def __init__(
         self, 
@@ -231,6 +294,11 @@ class BinomoAPI:
         self._ws_client: Optional[WebSocketClient] = None
         self._last_send_time = 0
         
+        # Cache for balance and other data that might be hard to retrieve
+        self._cached_balance: Optional[float] = None
+        self._cached_balance_timestamp: Optional[float] = None
+        self._balance_cache_ttl = 300  # 5 minutes cache TTL
+        
         # Initialize logger first
         self._setup_logging(enable_logging, log_level)
         
@@ -239,10 +307,16 @@ class BinomoAPI:
             self._session = login_session
             if self.logger:
                 self.logger.info("Using provided login session for session continuity")
+            # Don't establish additional session cookies - preserve login state
+            # Validate the session immediately and try to cache balance
+            self._validate_session()
+            self._try_cache_balance_from_session()
         else:
             self._session = requests.Session()
             if self.logger:
                 self.logger.info("Creating fresh session (no login session provided)")
+            # Establish session cookies only for fresh sessions
+            self._establish_session()
         
         # FIXED: Now properly maintains session continuity
         # Load configuration and assets
@@ -255,6 +329,103 @@ class BinomoAPI:
         if self.logger:
             self.logger.info(f"BinomoAPI initialized successfully with {len(self._assets)} assets")
         
+    def _try_cache_balance_from_session(self) -> None:
+        """Try to cache balance from the current session immediately."""
+        try:
+            import time
+            balance = self._test_balance_with_session(self._session, self._auth_token, self._device_id)
+            if balance is not None:
+                self._cached_balance = balance
+                self._cached_balance_timestamp = time.time()
+                if self.logger:
+                    self.logger.info(f"✅ Cached balance from session: ${balance/100}")
+            else:
+                if self.logger:
+                    self.logger.warning("⚠️ Could not cache balance from session")
+        except Exception as e:
+            if self.logger:
+                self.logger.warning(f"Failed to cache balance: {e}")
+    
+    def _get_cached_balance(self) -> Optional[float]:
+        """Get cached balance if still valid."""
+        if self._cached_balance is None or self._cached_balance_timestamp is None:
+            return None
+            
+        import time
+        if time.time() - self._cached_balance_timestamp > self._balance_cache_ttl:
+            # Cache expired
+            self._cached_balance = None
+            self._cached_balance_timestamp = None
+            return None
+            
+        return self._cached_balance
+    
+    def _validate_session(self) -> bool:
+        """Validate that the session is working properly."""
+        try:
+            # Simple request to check if session is valid
+            headers = self._session.headers.copy()
+            headers.update({
+                'accept': 'application/json',
+                'authorization-token': self._auth_token,
+                'device-id': self._device_id,
+                'device-type': 'web'
+            })
+            
+            # Try a simple endpoint to validate session
+            response = self._session.get(BALANCE_URL, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                if self.logger:
+                    self.logger.info("✅ Session validation successful")
+                return True
+            else:
+                if self.logger:
+                    self.logger.warning(f"⚠️ Session validation failed with status {response.status_code}")
+                # Try to refresh session
+                return self._refresh_session()
+                
+        except Exception as e:
+            if self.logger:
+                self.logger.warning(f"Session validation exception: {e}")
+            return self._refresh_session()
+    
+    def _refresh_session(self) -> bool:
+        """Attempt to refresh the session authentication."""
+        try:
+            if self.logger:
+                self.logger.info("Attempting to refresh session...")
+                
+            # Re-establish session state
+            self._session.headers.update({
+                'authorization-token': self._auth_token,
+                'device-id': self._device_id,
+                'device-type': 'web',
+                'origin': 'https://binomo.com',
+                'referer': 'https://binomo.com/',
+                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            })
+            
+            # Re-set cookies
+            self._session.cookies.set('authtoken', self._auth_token, domain='.binomo.com')
+            self._session.cookies.set('device_type', 'web', domain='.binomo.com')
+            self._session.cookies.set('device_id', self._device_id, domain='.binomo.com')
+            
+            # Visit main site to refresh session
+            try:
+                self._session.get('https://binomo.com/', timeout=10)
+            except:
+                pass
+                
+            if self.logger:
+                self.logger.info("Session refresh completed")
+            return True
+            
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"Session refresh failed: {e}")
+            return False
+    
     def _verify_session_immediately(self) -> None:
         """Verify the session works immediately after initialization."""
         try:
@@ -359,44 +530,40 @@ class BinomoAPI:
             return []
             
     def _connect_websocket(self) -> None:
-        """Establish WebSocket connection."""
-        # Get API host from config, with fallback
-        try:
-            if hasattr(self._config, 'API_HOST'):
-                api_host_base = self._config.API_HOST
-            else:
-                # Fallback to default WebSocket URL
-                api_host_base = "wss://ws.binomo.com/"
-        except:
-            api_host_base = "wss://ws.binomo.com/"
-            
-        api_host = (
-            f"{api_host_base}?authtoken={self._auth_token}"
-            f"&device=web&device_id={self._device_id}&?v=2&vsn=2.0.0"
-        )
-        
+        """Establish WebSocket connection with enhanced authentication."""
         try:
             if self.logger:
-                self.logger.info("Establishing WebSocket connection to Binomo API")
+                self.logger.info("Establishing WebSocket connection with enhanced authentication")
                 
-            self._ws_client = WebSocketClient(api_host)
-            # Note: WebSocket connection will be established when first message is sent
+            # Create enhanced WebSocket client with multiple auth strategies
+            self._ws_client = EnhancedWebSocketClient(
+                auth_token=self._auth_token,
+                device_id=self._device_id,
+                session=getattr(self, '_session', None)
+            )
             
             if self.logger:
-                self.logger.info("WebSocket client initialized successfully")
+                self.logger.info("Enhanced WebSocket client initialized successfully")
                 
         except Exception as e:
-            raise ConnectionError(f"Failed to initialize WebSocket client: {e}")
+            raise ConnectionError(f"Failed to initialize enhanced WebSocket client: {e}")
             
     async def _ensure_websocket_connection(self) -> None:
-        """Ensure WebSocket connection is established."""
+        """Ensure WebSocket connection is established with fallback authentication."""
         if not self._ws_client:
             raise ConnectionError("WebSocket client not initialized")
             
-        # If this is the first time using the WebSocket, establish connection
+        # If not connected, try enhanced authentication
         if not hasattr(self._ws_client, '_connected') or not self._ws_client._connected:
-            await self._ws_client.connect()
-            self._ws_client._connected = True
+            if self.logger:
+                self.logger.info("Attempting WebSocket connection with authentication fallback...")
+            
+            success = await self._ws_client.connect_with_fallback()
+            if not success:
+                raise ConnectionError("All WebSocket authentication strategies failed")
+            
+            if self.logger:
+                self.logger.info("✅ WebSocket connection established successfully!")
             
             # Join required channels after connection
             await self._join_channels_async()
@@ -470,6 +637,11 @@ class BinomoAPI:
         Raises:
             ConnectionError: If unable to establish connection
         """
+        # Validate session before connecting
+        if not self._validate_session():
+            if self.logger:
+                self.logger.warning("Session validation failed before WebSocket connection")
+            
         await self._ensure_websocket_connection()
         
     async def get_balance(self, account_type: Optional[str] = None) -> Balance:
@@ -487,20 +659,39 @@ class BinomoAPI:
             ConnectionError: If unable to connect to API
             BinomoAPIException: If API returns unexpected response
         """
-        # Small delay to ensure session is fully established
-        import asyncio
-        await asyncio.sleep(0.1)
-        
         if account_type is None:
             account_type = self._account_type
             
-        headers = {
+        # First try cached balance
+        cached_balance = self._get_cached_balance()
+        if cached_balance is not None:
+            if self.logger:
+                self.logger.info(f"Using cached balance: ${cached_balance/100}")
+            # Create a Balance object from cached data  
+            # Balance.from_dict expects 'amount' in cents, so use cached_balance directly
+            balance_data = {
+                'amount': cached_balance,  # This is already in cents
+                'currency': 'CLP',  # Default currency based on API response
+                'account_type': account_type
+            }
+            return Balance.from_dict(balance_data)
+        
+        # Validate session before making request
+        if not self._validate_session():
+            raise AuthenticationError("Session validation failed - unable to authenticate")
+            
+        # Small delay to ensure session is fully established
+        import asyncio
+        await asyncio.sleep(0.1)
+            
+        # Use session's default headers but override specific ones
+        headers = self._session.headers.copy()
+        headers.update({
             'accept': 'application/json, text/plain, */*',
             'accept-encoding': 'gzip, deflate, br, zstd',
             'accept-language': 'en-US,en;q=0.9',
             'authorization-token': self._auth_token,
             'cache-control': 'no-cache',
-            'cookie': f'authtoken={self._auth_token}; device_type=web; device_id={self._device_id}',
             'device-id': self._device_id,
             'device-type': 'web',
             'origin': 'https://binomo.com',
@@ -509,13 +700,13 @@ class BinomoAPI:
             'referer': 'https://binomo.com/',
             'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
             'sec-ch-ua-mobile': '?0',
-            'sec-ch-ua-platform': '"macOS"',
+            'sec-ch-ua-platform': '"Windows"',
             'sec-fetch-dest': 'empty',
             'sec-fetch-mode': 'cors',
             'sec-fetch-site': 'same-site',
-            'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-            'user-timezone': 'America/Santiago'
-        }
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'user-timezone': 'UTC'
+        })
         
         try:
             if self.logger:
@@ -742,10 +933,27 @@ class BinomoAPI:
         """Legacy method - use place_put_option instead."""
         await self.place_put_option(ric, duration, amount, is_demo)
         
-    async def Getbalance(self) -> float:
+    async def Getbalance(self) -> Optional[float]:
         """Legacy method - use get_balance instead."""
-        #time.sleep(1)
-        print(f"Getting balance with session: {gv.session}, auth_token: {self._auth_token}, device_id: {self._device_id}")
-        balance = self._test_balance_with_session(gv.session, self._auth_token, self._device_id)
-        return balance
+        # First try to get cached balance
+        cached_balance = self._get_cached_balance()
+        if cached_balance is not None:
+            if self.logger:
+                self.logger.info(f"Using cached balance: ${cached_balance/100}")
+            return cached_balance
+            
+        # Try to validate session and get fresh balance
+        if self._validate_session():
+            print(f"Getting balance with session: {self._session}, auth_token: {self._auth_token}, device_id: {self._device_id}")
+            balance = self._test_balance_with_session(self._session, self._auth_token, self._device_id)
+            if balance is not None:
+                # Update cache
+                import time
+                self._cached_balance = balance
+                self._cached_balance_timestamp = time.time()
+                return balance
+        
+        if self.logger:
+            self.logger.warning("Session validation failed and no cached balance available")
+        return None
 
