@@ -1,0 +1,43 @@
+# Include important files
+include README.md
+include LICENSE
+include requirements-clean.txt
+include pyproject.toml
+
+# Include package data
+recursive-include BinomoAPI *.py
+recursive-include BinomoAPI *.json
+recursive-include BinomoAPI/config *.py
+recursive-include BinomoAPI/wss *.py
+
+# Include documentation
+recursive-include docs *.md
+
+# Exclude unnecessary files
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude *.pyd
+global-exclude __pycache__
+global-exclude .git*
+global-exclude .DS_Store
+global-exclude *.so
+global-exclude *.dll
+
+# Exclude test and development files
+exclude test*.py
+exclude *test*.py
+exclude advanced_example.py
+exclude browser_*.py
+exclude enhanced_*.py
+exclude explore_*.py
+exclude final_*.py
+exclude fix_*.py
+exclude fixed_*.py
+exclude login_example.py
+exclude mock_*.py
+exclude working_*.py
+exclude websocket_*.py
+exclude *.md
+prune docs
+exclude Dockerfile
+exclude *.html
