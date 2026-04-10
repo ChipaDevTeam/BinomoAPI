@@ -31,7 +31,7 @@ async def main():
             result = await api.place_call_option(
                 asset="EURO",
                 duration_seconds=60,
-                amount=1000,
+                amount=100000,
                 use_demo=True
             )
 
