@@ -86,6 +86,6 @@ class TradeOrder:
                 "is_state": False,
                 "amount": self.amount
             },
-            "ref": ref,
+            "ref": str(ref),
             "join_ref": join_ref or "9"
         }
