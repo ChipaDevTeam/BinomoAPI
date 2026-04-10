@@ -70,7 +70,9 @@ class TradeOrder:
         if created_at is None:
             created_at = int(now * 1_000)  # milliseconds
             
-        expire_at = int(now) + self.duration_seconds  # seconds
+        # expire_at must be aligned to the next candle boundary (in seconds)
+        now_seconds = int(now)
+        expire_at = now_seconds - (now_seconds % self.duration_seconds) + self.duration_seconds
         
         return {
             "topic": "bo",
