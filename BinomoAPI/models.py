@@ -66,10 +66,11 @@ class TradeOrder:
     
     def to_payload(self, ref: int, created_at: Optional[int] = None, join_ref: Optional[str] = None) -> Dict[str, Any]:
         """Convert to WebSocket payload format"""
+        now = datetime.now().timestamp()
         if created_at is None:
-            created_at = int(datetime.now().timestamp() * 1_000_000)
+            created_at = int(now * 1_000)  # milliseconds
             
-        expire_at = created_at + (self.duration_seconds * 1_000_000)
+        expire_at = int(now) + self.duration_seconds  # seconds
         
         return {
             "topic": "bo",
