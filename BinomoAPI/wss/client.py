@@ -51,6 +51,7 @@ class WebSocketClient:
         self.session = session
         self.websocket: Optional[websockets.WebSocketServerProtocol] = None
         self._connected = False
+        self._last_messages = []
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self.logger.info(f"WebSocketClient initialized with FIXED session-based authentication")
         self.logger.info(f"URI: {self.uri}")
@@ -137,8 +138,14 @@ class WebSocketClient:
                 return
                 
             async for message in self.websocket:
-                self.logger.debug(f"Received: {message}")
-                # You can add message handling logic here
+                self.logger.info(f"📩 Received: {message}")
+                try:
+                    data = json.loads(message)
+                    self._last_messages.append(data)
+                    if len(self._last_messages) > 50:
+                        self._last_messages.pop(0)
+                except json.JSONDecodeError:
+                    pass
                 
         except websockets.exceptions.ConnectionClosed:
             self._connected = False

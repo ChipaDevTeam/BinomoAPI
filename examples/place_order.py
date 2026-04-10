@@ -1,6 +1,7 @@
 import asyncio
 import dotenv
 import os
+import json
 
 from BinomoAPI import BinomoAPI
 from BinomoAPI.exceptions import AuthenticationError
@@ -37,7 +38,14 @@ async def main():
 
             print(f"Trade placed: {result}")
 
-            await asyncio.sleep(15) 
+            # Wait for server response
+            await asyncio.sleep(3)
+            
+            # Print all received messages
+            if hasattr(api, '_ws_client') and api._ws_client:
+                print(f"\n=== Server responses ({len(api._ws_client._last_messages)}) ===")
+                for msg in api._ws_client._last_messages:
+                    print(json.dumps(msg, indent=2))
             balance = await api.get_balance()
             print(f"Balance after trade: ${balance.amount:.2f}")
             
