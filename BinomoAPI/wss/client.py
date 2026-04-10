@@ -65,8 +65,8 @@ class WebSocketClient:
             # Connect with session cookies - THIS IS THE FIX!
             self.websocket = await websockets.connect(
                 self.uri, 
-                extra_headers=self.headers,
-                timeout=30
+                additional_headers=self.headers,
+                open_timeout=30
             )
             self._connected = True
             self.logger.info("🎉 WebSocket connected successfully with session cookies!")
