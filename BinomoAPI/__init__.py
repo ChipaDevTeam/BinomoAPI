@@ -17,7 +17,7 @@ from .exceptions import (
 from .models import LoginResponse, Asset, Balance, TradeOrder
 from .constants import TRADE_DIRECTIONS, ACCOUNT_TYPES, OPTION_TYPES
 
-__version__ = "2.0.0"
+__version__ = "2.0.1"
 __author__ = "BinomoAPI Team"
 __email__ = "support@binomoapi.com"
 
