@@ -2,7 +2,7 @@ import asyncio
 import dotenv
 import os
 
-import BinomoAPI
+from BinomoAPI import BinomoAPI
 from BinomoAPI.exceptions import AuthenticationError
 
 dotenv.load_dotenv()
