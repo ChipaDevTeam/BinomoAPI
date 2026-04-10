@@ -878,6 +878,9 @@ class BinomoAPI:
             bo_join_ref = getattr(self, '_channel_join_refs', {}).get('bo')
             payload = trade_order.to_payload(self._ref_counter, join_ref=bo_join_ref)
             message = json.dumps(payload)
+            print("===============================================")
+            print(f"Payload: {payload}")
+            print("===============================================")
             
             if self.logger:
                 self.logger.info(f"Placing {direction.upper()} option: {asset_ric}, ${amount}, {duration_seconds}s")
