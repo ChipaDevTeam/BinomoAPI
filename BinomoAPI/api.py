@@ -585,17 +585,21 @@ class BinomoAPI:
             WS_TOPICS["BASE"],
             WS_TOPICS["CFD_ZERO_SPREAD"],
             WS_TOPICS["MARATHON"],
-            f"asset:{self._default_asset_ric}"
+            f"asset:{self._default_asset_ric}",
+            WS_TOPICS["BINARY_OPTIONS"]
         ]
         
+        self._channel_join_refs = {}
         for channel in channels_to_join:
+            ref = str(self._ref_counter)
             payload = {
                 "topic": channel,
                 "event": "phx_join",
                 "payload": {},
-                "ref": str(self._ref_counter),
-                "join_ref": str(self._ref_counter)
+                "ref": ref,
+                "join_ref": ref
             }
+            self._channel_join_refs[channel] = ref
             await self._send_websocket_message_async(json.dumps(payload))
             
         if self.logger:
@@ -871,7 +875,8 @@ class BinomoAPI:
         
         # Send trade order
         try:
-            payload = trade_order.to_payload(self._ref_counter)
+            bo_join_ref = getattr(self, '_channel_join_refs', {}).get('bo')
+            payload = trade_order.to_payload(self._ref_counter, join_ref=bo_join_ref)
             message = json.dumps(payload)
             
             if self.logger:

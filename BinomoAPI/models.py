@@ -64,10 +64,10 @@ class TradeOrder:
     account_type: str = "demo"
     tournament_id: Optional[str] = None
     
-    def to_payload(self, ref: int, created_at: Optional[int] = None) -> Dict[str, Any]:
+    def to_payload(self, ref: int, created_at: Optional[int] = None, join_ref: Optional[str] = None) -> Dict[str, Any]:
         """Convert to WebSocket payload format"""
         if created_at is None:
-            created_at = int(datetime.now().timestamp())
+            created_at = int(datetime.now().timestamp() * 1_000_000)
             
         expire_at = created_at + (self.duration_seconds * 1_000_000)
         
@@ -86,5 +86,5 @@ class TradeOrder:
                 "amount": self.amount
             },
             "ref": ref,
-            "join_ref": "9"
+            "join_ref": join_ref or "9"
         }
