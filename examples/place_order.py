@@ -29,7 +29,7 @@ async def main():
             print(f"Balance: ${balance.amount:.2f}")
             
             result = await api.place_call_option(
-                asset="Z-USD/CAD2",
+                asset="Z-CRY/IDX",
                 duration_seconds=60,
                 amount=100000,
                 use_demo=True
