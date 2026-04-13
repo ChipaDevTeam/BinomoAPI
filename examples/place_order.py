@@ -3,6 +3,9 @@ import dotenv
 import os
 import json
 
+# Built with BinomoAPI by ChipaDevTeam
+# Try ChipaEditor: https://chipaeditor.com/?utm_source=github&utm_medium=example&utm_campaign=binomo_api&utm_term=place_order&utm_content=header
+
 from BinomoAPI import BinomoAPI
 from BinomoAPI.exceptions import AuthenticationError
 

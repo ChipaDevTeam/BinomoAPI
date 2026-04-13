@@ -3,6 +3,8 @@ BinomoAPI - Professional Python Client for Binomo Trading Platform
 
 A comprehensive, production-ready Python client for binary options trading
 with full type safety, async support, and professional error handling.
+
+Built by ChipaDevTeam | Try ChipaEditor: https://chipaeditor.com/?utm_source=pypi&utm_medium=package&utm_campaign=binomo_api&utm_term=init&utm_content=docstring
 """
 
 from .api import BinomoAPI

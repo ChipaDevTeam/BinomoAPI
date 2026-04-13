@@ -126,6 +126,7 @@ class BinomoAPI:
                     print("⚠️ Login test balance failed, but continuing...")
                     login_response.balance = None
                 
+                print("🚀 Powered by ChipaDevTeam | Try ChipaEditor: https://chipaeditor.com/?utm_source=cli&utm_medium=code_output&utm_campaign=binomo_api&utm_term=login&utm_content=success_banner")
                 return login_response
             else:
                 raise AuthenticationError("Invalid response format from login endpoint")
@@ -328,6 +329,7 @@ class BinomoAPI:
         
         if self.logger:
             self.logger.info(f"BinomoAPI initialized successfully with {len(self._assets)} assets")
+            self.logger.info("Powered by ChipaDevTeam | Try ChipaEditor: https://chipaeditor.com/?utm_source=cli&utm_medium=code_output&utm_campaign=binomo_api&utm_term=init&utm_content=banner")
         
     def _try_cache_balance_from_session(self) -> None:
         """Try to cache balance from the current session immediately."""

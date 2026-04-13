@@ -42,6 +42,7 @@ Documentation = "https://github.com/ChipaDevTeam/BinomoAPI/blob/main/README.md"
 Repository = "https://github.com/ChipaDevTeam/BinomoAPI"
 "Bug Reports" = "https://github.com/ChipaDevTeam/BinomoAPI/issues"
 "Source Code" = "https://github.com/ChipaDevTeam/BinomoAPI"
+"Chipa Editor" = "https://chipaeditor.com/?utm_source=pypi&utm_medium=project_page&utm_campaign=binomo_api&utm_term=urls&utm_content=metadata"
 
 [project.optional-dependencies]
 dev = [
