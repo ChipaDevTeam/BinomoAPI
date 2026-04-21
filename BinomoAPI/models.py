@@ -74,7 +74,7 @@ class TradeOrder:
         now_seconds = int(now)
         expire_at = now_seconds - (now_seconds % self.duration_seconds) + self.duration_seconds
 
-        if (expire_at - now_seconds) < 30:
+        while (expire_at - now) < 30:
             expire_at += self.duration_seconds
         
         return {
