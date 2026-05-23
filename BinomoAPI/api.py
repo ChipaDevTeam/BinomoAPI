@@ -27,6 +27,7 @@ from BinomoAPI.exceptions import (
 )
 from BinomoAPI.constants import (
     LOGIN_URL,
+    LOGIN_URL_V1,
     BALANCE_URL,
     DEFAULT_DEVICE_ID,
     DEFAULT_ASSET_RIC,
@@ -79,10 +80,24 @@ class BinomoAPI:
         payload = {
             "email": email,
             "password": password,
+            "device_id": device_id,
+            "device_type": "web",
         }
         
         try:
             response = session.post(LOGIN_URL, headers=headers, json=payload, timeout=30)
+            
+            # If v2 returns 422 (Unprocessable Entity), try v1 endpoint as fallback
+            if response.status_code == 422:
+                v2_error_body = ""
+                try:
+                    v2_error_body = response.json()
+                except Exception:
+                    v2_error_body = response.text[:300]
+                print(f"⚠️ v2 sign_in returned 422, response: {v2_error_body}")
+                print("🔄 Retrying with v1 endpoint...")
+                response = session.post(LOGIN_URL_V1, headers=headers, json=payload, timeout=30)
+            
             response.raise_for_status()
             
             # Debug: Print cookies after login response
@@ -132,12 +147,22 @@ class BinomoAPI:
                 raise AuthenticationError("Invalid response format from login endpoint")
                 
         except requests.exceptions.HTTPError as e:
+            try:
+                error_body = e.response.json()
+            except Exception:
+                error_body = e.response.text[:300]
             if e.response.status_code == 401:
-                raise AuthenticationError("Invalid email or password")
+                raise AuthenticationError(f"Invalid email or password. Server response: {error_body}")
+            elif e.response.status_code == 422:
+                raise AuthenticationError(
+                    f"Login rejected by Binomo (422 Unprocessable Entity). "
+                    f"Server validation errors: {error_body}. "
+                    f"Check that your email/password are correct and your account is active."
+                )
             elif e.response.status_code >= 500:
-                raise ConnectionError(f"Server error: {e.response.status_code}")
+                raise ConnectionError(f"Server error: {e.response.status_code}. Response: {error_body}")
             else:
-                raise BinomoAPIException(f"HTTP error {e.response.status_code}: {e}")
+                raise BinomoAPIException(f"HTTP error {e.response.status_code}: {error_body}")
                 
         except requests.exceptions.ConnectionError as e:
             raise ConnectionError(f"Unable to connect to Binomo API: {e}")
