@@ -73,6 +73,9 @@ class TradeOrder:
         # expire_at must be aligned to the next candle boundary (in seconds)
         now_seconds = int(now)
         expire_at = now_seconds - (now_seconds % self.duration_seconds) + self.duration_seconds
+
+        while (expire_at - now) < 30:
+            expire_at += self.duration_seconds
         
         return {
             "topic": "bo",
