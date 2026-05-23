@@ -4,6 +4,7 @@ Constants for BinomoAPI
 
 # API Endpoints
 LOGIN_URL = "https://api.binomo.com/passport/v2/sign_in?locale=en"
+LOGIN_URL_V1 = "https://api.binomo.com/passport/v1/sign_in?locale=en"
 BALANCE_URL = "https://api.binomo.com/bank/v1/read?locale=en"
 
 # Default values
@@ -51,5 +52,5 @@ DEFAULT_HEADERS = {
     'sec-fetch-dest': 'empty',
     'sec-fetch-mode': 'cors',
     'sec-fetch-site': 'same-site',
-    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 OPR/117.0.0.0'
+    'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36'
 }
