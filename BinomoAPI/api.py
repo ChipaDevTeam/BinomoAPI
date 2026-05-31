@@ -38,6 +38,10 @@ from BinomoAPI.constants import (
 )
 from BinomoAPI.models import LoginResponse, Asset, Balance, TradeOrder
 
+# Module-level cache for the bundled asset list so the JSON file is only
+# parsed once per interpreter session.
+_assets_cache: Optional[List[Asset]] = None
+
 
 class BinomoAPI:
     @staticmethod
@@ -669,7 +673,92 @@ class BinomoAPI:
             List of Asset objects
         """
         return self._assets.copy()
-        
+
+    @staticmethod
+    def get_assets() -> List[Asset]:
+        """
+        Return the full list of supported assets without requiring authentication.
+
+        This static method reads the bundled ``assets.json`` file and returns every
+        asset known to the library, including both standard pairs (e.g. ``EUR/USD``)
+        and OTC variants (e.g. ``EUR/USD (OTC)``).  The result is cached after the
+        first call so the file is only read once per interpreter session.
+
+        Returns:
+            List of :class:`~BinomoAPI.models.Asset` objects.
+
+        Example::
+
+            assets = BinomoAPI.get_assets()
+            for asset in assets:
+                print(asset.id, asset.name, asset.ric, asset.is_otc)
+        """
+        global _assets_cache
+        if _assets_cache is not None:
+            return list(_assets_cache)
+        try:
+            assets_path = Path(__file__).parent / "assets.json"
+            with open(assets_path, "r", encoding="utf-8") as f:
+                assets_data = json.load(f)
+            _assets_cache = [Asset.from_dict(asset) for asset in assets_data]
+            return list(_assets_cache)
+        except FileNotFoundError:
+            return []
+        except json.JSONDecodeError:
+            return []
+
+    @staticmethod
+    def get_asset_names() -> List[str]:
+        """
+        Return the names of all supported assets without requiring authentication.
+
+        Returns:
+            List of asset name strings (e.g. ``["EUR/USD", "EUR/USD (OTC)", ...]``).
+
+        Example::
+
+            names = BinomoAPI.get_asset_names()
+            print(names)
+        """
+        return [asset.name for asset in BinomoAPI.get_assets()]
+
+    @staticmethod
+    def get_otc_assets() -> List[Asset]:
+        """
+        Return only the OTC (Over-The-Counter) assets.
+
+        OTC assets are available around the clock, even when standard markets are
+        closed.  They are identified by a name ending in ``(OTC)``.
+
+        Returns:
+            List of :class:`~BinomoAPI.models.Asset` objects whose
+            :attr:`~BinomoAPI.models.Asset.is_otc` property is ``True``.
+
+        Example::
+
+            otc_assets = BinomoAPI.get_otc_assets()
+            for asset in otc_assets:
+                print(asset.name, asset.ric)
+        """
+        return [asset for asset in BinomoAPI.get_assets() if asset.is_otc]
+
+    @staticmethod
+    def get_standard_assets() -> List[Asset]:
+        """
+        Return only the standard (non-OTC) assets.
+
+        Returns:
+            List of :class:`~BinomoAPI.models.Asset` objects whose
+            :attr:`~BinomoAPI.models.Asset.is_otc` property is ``False``.
+
+        Example::
+
+            standard_assets = BinomoAPI.get_standard_assets()
+            for asset in standard_assets:
+                print(asset.name, asset.ric)
+        """
+        return [asset for asset in BinomoAPI.get_assets() if not asset.is_otc]
+
     async def connect(self) -> bool:
         """
         Reconnect WebSocket if disconnected.

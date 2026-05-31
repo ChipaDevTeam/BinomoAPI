@@ -27,14 +27,23 @@ class Asset:
     name: str
     ric: str
     is_active: bool = True
-    
+    id: Optional[int] = None
+    asset_type: Optional[int] = None
+
+    @property
+    def is_otc(self) -> bool:
+        """Return True if this asset is an OTC (Over-The-Counter) variant."""
+        return self.name.strip().endswith("(OTC)")
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'Asset':
         """Create Asset from dictionary"""
         return cls(
             name=data['name'],
             ric=data['ric'],
-            is_active=data.get('is_active', True)
+            is_active=data.get('is_active', True),
+            id=data.get('id'),
+            asset_type=data.get('type'),
         )
 
 @dataclass

@@ -136,7 +136,30 @@ real_balance = await api.get_balance("real")
 ### 4. Asset Management
 
 ```python
-# Get all available assets
+# ── Static methods – no authentication required ──────────────────────────
+
+# Get the full list of all supported assets (standard + OTC)
+assets = BinomoAPI.get_assets()
+for asset in assets:
+    print(f"ID: {asset.id}, Name: {asset.name}, RIC: {asset.ric}, OTC: {asset.is_otc}")
+
+# Get just the names of all assets
+names = BinomoAPI.get_asset_names()
+print(names)  # ['ADA/USD', 'EUR/USD (OTC)', ...]
+
+# Filter OTC assets only
+otc_assets = BinomoAPI.get_otc_assets()
+for asset in otc_assets:
+    print(f"{asset.name} -> {asset.ric}")
+
+# Filter standard (non-OTC) assets only
+standard_assets = BinomoAPI.get_standard_assets()
+for asset in standard_assets:
+    print(f"{asset.name} -> {asset.ric}")
+
+# ── Instance methods – require an authenticated API instance ─────────────
+
+# Get all available assets via an existing instance
 assets = api.get_available_assets()
 for asset in assets:
     print(f"Name: {asset.name}, RIC: {asset.ric}, Active: {asset.is_active}")
@@ -226,6 +249,11 @@ class Asset:
     name: str
     ric: str
     is_active: bool = True
+    id: Optional[int] = None        # Numeric asset ID
+    asset_type: Optional[int] = None  # Asset type code
+
+    @property
+    def is_otc(self) -> bool: ...   # True when name ends with "(OTC)"
 ```
 
 ### Balance
