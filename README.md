@@ -3,12 +3,12 @@
 A comprehensive, production-ready Python client for the Binomo trading platform API. This library provides a clean, type-safe interface for authentication, account management, and binary options trading.
 
 ## Support
-🚀 [Try ChipaEditor - Our AI-Powered Code Editor](https://chipaeditor.com/?utm_source=github&utm_medium=readme&utm_campaign=binomo_api&utm_term=support&utm_content=header) <br>
+🚀 [Try ChipaEditor - Our AI-Powered Strategy Editor](https://chipaeditor.com/?utm_source=github&utm_medium=readme&utm_campaign=binomo_api&utm_term=support&utm_content=header) <br>
 donate in paypal: [Paypal.me](https://paypal.me/ChipaCL?country.x=CL&locale.x=en_US) <br> 
 help us in patreon: [Patreon](https://patreon.com/VigoDEV?utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_creator&utm_content=copyLink) <br>
 👉 [Join us on Discord](https://discord.gg/p7YyFqSmAz) <br>
-[Get our services here](https://shop.chipatrade.com/collections/all) <br>
-[Let us create your bot here](https://shop.chipatrade.com/collections/all) <br>
+[Get our services here](https://chipaeditor.com) <br>
+[Let us create your bot here](https://chipaeditor.com) <br>
 [Contact us in Telegram](https://t.me/ChipaDevTeam)
 
 ## 🚀 Features
