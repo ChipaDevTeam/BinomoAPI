@@ -68,7 +68,12 @@ defaults:
   - scope:
       path: ""
     values:
+      layout: default
       image: https://opengraph.githubassets.com/1/ChipaDevTeam/BinomoAPI
+  - scope:
+      path: "googlef4dfa424ef6d13bb.html"
+    values:
+      sitemap: false
 
 exclude:
   - README.md
