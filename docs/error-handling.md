@@ -1,365 +1,119 @@
-# Error Handling Guide
+---
+title: Error Handling
+description: How to handle BinomoAPI errors in your Binomo trading bot, including login failures, network errors, invalid parameters and failed trades, with retry patterns.
+nav_order: 7
+---
 
-## Support
-🚀 [Try ChipaEditor - Our AI-Powered Code Editor](https://chipaeditor.com/?utm_source=github&utm_medium=docs&utm_campaign=binomo_api&utm_term=error_handling&utm_content=header) <br>
-donate in paypal: [Paypal.me](https://paypal.me/ChipaCL?country.x=CL&locale.x=en_US) <br> 
-help us in patreon: [Patreon](https://patreon.com/VigoDEV?utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_creator&utm_content=copyLink) <br>
-👉 [Join us on Discord](https://discord.gg/p7YyFqSmAz) <br>
-[Get our services here](https://https://chipatrade.com/shop/) <br>
-[Let us create your bot here](https://chipatrade.com/services/bot-development) <br>
-[Contact us in Telegram](https://t.me/ChipaDevTeam)
+# Error handling
+{: .no_toc }
 
-Comprehensive guide to handling errors and exceptions in BinomoAPI.
+Every error BinomoAPI raises derives from `BinomoAPIException`, so a single `except` catches them all, and the subclasses let you react precisely.
+{: .fs-5 .fw-300 }
 
-## 🎯 Exception Hierarchy
+1. TOC
+{:toc}
 
-BinomoAPI provides a comprehensive exception hierarchy for precise error handling:
+---
 
-```python
-BinomoAPIException
-├── AuthenticationError   # Login and authentication issues
-├── ConnectionError      # Network and connectivity problems
-├── InvalidParameterError # Invalid input parameters
-├── TradeError          # Trading operation failures
-└── InsufficientBalanceError # Insufficient funds for trading
-```
+## Exception hierarchy
 
-## 🚨 Common Errors
+| Exception | Raised when | What to do |
+|:--|:--|:--|
+| `BinomoAPIException` | Base class; also unexpected HTTP or JSON responses | Log it; retry later |
+| `AuthenticationError` | Wrong email/password, login rejected (HTTP 401/422), token expired | Check credentials; log in again |
+| `ConnectionError` | Network down, timeout, Binomo 5xx, WebSocket failed | Back off and retry |
+| `InvalidParameterError` | Empty credentials, non-positive amount or duration, unknown asset | Fix your input; don't retry |
+| `TradeError` | The order couldn't be sent | Reconnect, then retry once |
+| `InsufficientBalanceError` | Subclass of `TradeError`, reserved for balance failures | Stop trading |
 
-### Authentication Errors
+{: .warning }
+> BinomoAPI's `ConnectionError` is **not** Python's built-in `ConnectionError`. Import it explicitly with `from BinomoAPI import ConnectionError`, or catch `BinomoAPIException`.
 
-```python
-from BinomoAPI import BinomoAPI, AuthenticationError
-
-try:
-    login_response = BinomoAPI.login(
-        "email@example.com",
-        "password"
-    )
-except AuthenticationError as e:
-    print(f"Login failed: {e}")
-    # Handle invalid credentials
-    # Possible actions:
-    # 1. Retry with correct credentials
-    # 2. Request password reset
-    # 3. Check account status
-```
-
-### Connection Errors
-
-```python
-from BinomoAPI import BinomoAPI, ConnectionError
-
-async def handle_connection_issues():
-    try:
-        async with BinomoAPI(...) as api:
-            await api.get_balance()
-    except ConnectionError as e:
-        print(f"Connection error: {e}")
-        # Handle connection issues:
-        # 1. Check internet connection
-        # 2. Verify API endpoint
-        # 3. Implement retry logic
-```
-
-### Trade Errors
-
-```python
-from BinomoAPI import BinomoAPI, TradeError
-
-async def handle_trade_errors(api: BinomoAPI):
-    try:
-        result = await api.place_call_option(
-            asset="EUR/USD",
-            duration_seconds=60,
-            amount=5.0
-        )
-    except TradeError as e:
-        print(f"Trade failed: {e}")
-        # Handle trade failure:
-        # 1. Verify asset availability
-        # 2. Check market conditions
-        # 3. Validate parameters
-```
-
-### Balance Errors
-
-```python
-from BinomoAPI import BinomoAPI, InsufficientBalanceError
-
-async def handle_balance_errors(api: BinomoAPI):
-    try:
-        await api.place_call_option(
-            asset="EUR/USD",
-            duration_seconds=60,
-            amount=1000.0
-        )
-    except InsufficientBalanceError as e:
-        print(f"Insufficient funds: {e}")
-        # Handle insufficient balance:
-        # 1. Check current balance
-        # 2. Adjust trade amount
-        # 3. Add funds if needed
-```
-
-## 🛡️ Best Practices
-
-### Comprehensive Error Handling
-
-```python
-from BinomoAPI.exceptions import (
-    AuthenticationError,
-    ConnectionError,
-    TradeError,
-    InsufficientBalanceError,
-    InvalidParameterError
-)
-
-async def professional_error_handling():
-    try:
-        # Login
-        login_response = BinomoAPI.login(
-            "email@example.com",
-            "password"
-        )
-        
-        async with BinomoAPI(
-            auth_token=login_response.authtoken,
-            device_id=login_response.user_id,
-            demo=True
-        ) as api:
-            try:
-                # Trading operations
-                result = await api.place_call_option(
-                    asset="EUR/USD",
-                    duration_seconds=60,
-                    amount=5.0
-                )
-                
-            except InsufficientBalanceError as e:
-                logging.error(f"Balance too low: {e}")
-                # Implement recovery strategy
-                
-            except TradeError as e:
-                logging.error(f"Trade failed: {e}")
-                # Analyze failure reason
-                
-            except InvalidParameterError as e:
-                logging.error(f"Invalid parameters: {e}")
-                # Correct parameters
-                
-    except AuthenticationError as e:
-        logging.error(f"Authentication failed: {e}")
-        # Handle auth issues
-        
-    except ConnectionError as e:
-        logging.error(f"Connection failed: {e}")
-        # Implement retry logic
-```
-
-### Retry Logic
+## A robust template
 
 ```python
 import asyncio
-from typing import Callable, Any
+from BinomoAPI import (
+    BinomoAPI, BinomoAPIException, AuthenticationError,
+    ConnectionError, InvalidParameterError, TradeError,
+)
 
-async def retry_with_backoff(
-    func: Callable,
-    max_retries: int = 3,
-    initial_delay: float = 1.0
-) -> Any:
-    """
-    Retry a function with exponential backoff.
-    """
-    retries = 0
-    delay = initial_delay
-    
-    while True:
+async def run(email, password):
+    try:
+        login = BinomoAPI.login(email, password)
+    except AuthenticationError as e:
+        raise SystemExit(f"Login failed, check your credentials: {e}")
+
+    async with BinomoAPI.create_from_login(login, demo=True) as api:
         try:
-            return await func()
-            
-        except (ConnectionError, TradeError) as e:
-            retries += 1
-            if retries >= max_retries:
-                raise
-            
-            logging.warning(
-                f"Attempt {retries} failed: {e}. "
-                f"Retrying in {delay} seconds..."
-            )
-            
-            await asyncio.sleep(delay)
-            delay *= 2  # Exponential backoff
+            await api.place_call_option("EURO", 60, 100)
+        except InvalidParameterError as e:
+            print("Bad input:", e)                 # bug in your code; don't retry
+        except TradeError as e:
+            print("Order not sent:", e)            # retry after reconnecting
+        except ConnectionError as e:
+            print("Network problem:", e)
+        except BinomoAPIException as e:
+            print("Unexpected API error:", e)
 ```
 
-### Error Logging
+## Retry with exponential backoff
+
+Transient errors such as timeouts, 5xx responses or a dropped WebSocket usually clear up on their own. Retry those, but never retry `InvalidParameterError` or `AuthenticationError` in a loop:
+
+```python
+import asyncio
+from BinomoAPI import ConnectionError, TradeError
+
+async def with_retry(make_call, attempts=3, base_delay=1.0):
+    for attempt in range(1, attempts + 1):
+        try:
+            return await make_call()
+        except (ConnectionError, TradeError):
+            if attempt == attempts:
+                raise
+            await asyncio.sleep(base_delay * 2 ** (attempt - 1))
+
+result = await with_retry(lambda: api.place_put_option("EURO", 60, 100))
+```
+
+## Re-login when the session expires
+
+Long-running bots eventually lose their session. Catch `AuthenticationError`, log in again and rebuild the client:
+
+```python
+async def get_balance_with_relogin(api, email, password):
+    try:
+        return api, await api.get_balance()
+    except AuthenticationError:
+        await api.close()
+        login = BinomoAPI.login(email, password)
+        api = BinomoAPI.create_from_login(login, demo=True)
+        return api, await api.get_balance()
+```
+
+## Debug logging
+
+Turn on logging to see every request, response and WebSocket message:
 
 ```python
 import logging
+logging.basicConfig(level=logging.DEBUG)
 
-def setup_error_logging():
-    # Create formatter
-    formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    
-    # Create handlers
-    file_handler = logging.FileHandler('errors.log')
-    file_handler.setLevel(logging.ERROR)
-    file_handler.setFormatter(formatter)
-    
-    # Configure logger
-    logger = logging.getLogger('BinomoAPI')
-    logger.setLevel(logging.ERROR)
-    logger.addHandler(file_handler)
+api = BinomoAPI.create_from_login(login, enable_logging=True, log_level=logging.DEBUG)
 ```
 
-## 🔍 Error Analysis
+{: .note }
+> Debug logs include your auth token and request headers. Don't paste them publicly. Redact the token before you share logs in an issue or on Discord.
 
-### Trade Error Analysis
+## Common errors
 
-```python
-async def analyze_trade_error(
-    api: BinomoAPI,
-    error: TradeError
-) -> dict:
-    """
-    Analyze trade errors and suggest solutions.
-    """
-    analysis = {
-        "error_type": type(error).__name__,
-        "message": str(error),
-        "suggestions": []
-    }
-    
-    if "insufficient balance" in str(error).lower():
-        balance = await api.get_balance()
-        analysis["suggestions"].append(
-            f"Current balance (${balance.amount}) "
-            "is too low for trade"
-        )
-    
-    elif "invalid asset" in str(error).lower():
-        assets = api.get_available_assets()
-        analysis["suggestions"].append(
-            "Asset may be temporarily unavailable. "
-            f"Available assets: {[a.name for a in assets]}"
-        )
-    
-    elif "market closed" in str(error).lower():
-        analysis["suggestions"].append(
-            "Market is currently closed. "
-            "Check trading hours."
-        )
-    
-    return analysis
-```
+| Message | Cause | Fix |
+|:--|:--|:--|
+| `Invalid email or password` | Wrong credentials, or the account uses Google/Facebook sign-in | Set a password on Binomo and use it |
+| `Login rejected by Binomo (422 ...)` | Binomo rejected the request, often after many attempts or a new captcha | Log in once in the browser, wait a few minutes, retry |
+| `Unknown asset: ...` | You passed a name instead of a RIC | Use the RIC from the [Asset List](assets) |
+| `Session validation failed` | Token expired or a different `device_id` was used | Log in again; keep the `device_id` consistent |
+| `WebSocket connection failed` | Network issue or Binomo maintenance | Retry with backoff |
 
-### Connection Error Analysis
-
-```python
-async def analyze_connection_error(
-    error: ConnectionError
-) -> dict:
-    """
-    Analyze connection errors and provide solutions.
-    """
-    import socket
-    
-    analysis = {
-        "error_type": type(error).__name__,
-        "message": str(error),
-        "network_status": None,
-        "suggestions": []
-    }
-    
-    # Check internet connection
-    try:
-        socket.create_connection(("8.8.8.8", 53))
-        analysis["network_status"] = "connected"
-    except OSError:
-        analysis["network_status"] = "disconnected"
-        analysis["suggestions"].append(
-            "No internet connection detected"
-        )
-    
-    # Analyze error message
-    if "timeout" in str(error).lower():
-        analysis["suggestions"].append(
-            "Request timed out. Check network speed."
-        )
-    elif "refused" in str(error).lower():
-        analysis["suggestions"].append(
-            "Connection refused. Service may be down."
-        )
-    
-    return analysis
-```
-
-## 🔄 Recovery Strategies
-
-### Session Recovery
-
-```python
-async def recover_session(api: BinomoAPI) -> bool:
-    """
-    Attempt to recover a failed session.
-    """
-    try:
-        # Re-authenticate
-        login_response = BinomoAPI.login(
-            api.email,
-            api.password
-        )
-        
-        # Update credentials
-        api.auth_token = login_response.authtoken
-        api.device_id = login_response.user_id
-        
-        # Verify recovery
-        await api.get_balance()
-        return True
-        
-    except Exception as e:
-        logging.error(f"Session recovery failed: {e}")
-        return False
-```
-
-### Trade Recovery
-
-```python
-async def recover_failed_trade(
-    api: BinomoAPI,
-    original_params: dict
-) -> bool:
-    """
-    Attempt to recover a failed trade.
-    """
-    try:
-        # Verify account status
-        balance = await api.get_balance()
-        if balance.amount < original_params["amount"]:
-            logging.error("Insufficient balance for recovery")
-            return False
-        
-        # Verify asset status
-        assets = api.get_available_assets()
-        asset = next(
-            (a for a in assets 
-             if a.name == original_params["asset"]),
-            None
-        )
-        if not asset or not asset.is_active:
-            logging.error("Asset not available for recovery")
-            return False
-        
-        # Retry trade
-        await api.place_call_option(**original_params)
-        return True
-        
-    except Exception as e:
-        logging.error(f"Trade recovery failed: {e}")
-        return False
-```
-
-Remember to always implement appropriate error handling for your specific use case!
+Still stuck? Search the [FAQ](faq), [open an issue](https://github.com/ChipaDevTeam/BinomoAPI/issues), or ask in [Discord](https://discord.gg/p7YyFqSmAz).
