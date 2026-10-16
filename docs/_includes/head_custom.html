@@ -1,0 +1,36 @@
+<meta name="keywords" content="binomo api, binomo python, binomo trading bot, binomo bot, binomo api python, binary options api, binomo websocket, binomo automation">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareSourceCode",
+  "name": "BinomoAPI",
+  "description": "Free, open-source Python library for the Binomo trading platform: login, balance, assets and CALL/PUT binary options for trading bots.",
+  "codeRepository": "https://github.com/ChipaDevTeam/BinomoAPI",
+  "programmingLanguage": "Python",
+  "runtimePlatform": "Python 3.8+",
+  "license": "https://opensource.org/licenses/MIT",
+  "url": "https://chipadevteam.github.io/BinomoAPI/",
+  "author": {
+    "@type": "Organization",
+    "name": "ChipaDevTeam",
+    "url": "https://github.com/ChipaDevTeam"
+  }
+}
+</script>
+{%- if page.faq %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {%- for item in page.faq %}
+    {
+      "@type": "Question",
+      "name": {{ item.q | jsonify }},
+      "acceptedAnswer": { "@type": "Answer", "text": {{ item.a | jsonify }} }
+    }{% unless forloop.last %},{% endunless %}
+    {%- endfor %}
+  ]
+}
+</script>
+{%- endif %}
