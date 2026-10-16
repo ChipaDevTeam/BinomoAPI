@@ -8,7 +8,7 @@ version = "2.0.1"
 authors = [
     {name = "ChipaDevTeam", email = "chipadevteam@gmail.com"},
 ]
-description = "Professional Python client for Binomo trading platform"
+description = "Binomo API for Python: build Binomo trading bots with login, balance, assets and CALL/PUT binary options"
 readme = "README.md"
 license = {file = "LICENSE"}
 requires-python = ">=3.8"
@@ -27,7 +27,7 @@ classifiers = [
     "Topic :: Office/Business :: Financial :: Investment",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-keywords = ["binomo", "trading", "binary options", "api", "finance", "investment"]
+keywords = ["binomo", "binomo api", "binomo python", "binomo bot", "trading bot", "binary options", "binary options api", "trading", "websocket", "asyncio", "algorithmic trading", "finance"]
 dependencies = [
     "requests>=2.31.0",
     "websockets>=11.0.0",
@@ -38,7 +38,10 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/ChipaDevTeam/BinomoAPI"
-Documentation = "https://github.com/ChipaDevTeam/BinomoAPI/blob/main/README.md"
+Documentation = "https://chipadevteam.github.io/BinomoAPI/"
+Changelog = "https://github.com/ChipaDevTeam/BinomoAPI/releases"
+Discord = "https://discord.gg/p7YyFqSmAz"
+"Bot Development" = "https://chipatrade.com/services/bot-development"
 Repository = "https://github.com/ChipaDevTeam/BinomoAPI"
 "Bug Reports" = "https://github.com/ChipaDevTeam/BinomoAPI/issues"
 "Source Code" = "https://github.com/ChipaDevTeam/BinomoAPI"
