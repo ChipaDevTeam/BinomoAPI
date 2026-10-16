@@ -1,432 +1,67 @@
-# Best Practices
+---
+title: Best Practices
+description: Run a safe, reliable Binomo trading bot. Covers risk limits, demo testing, credential security, session handling and logging for BinomoAPI.
+nav_order: 9
+---
 
-## Support
-🚀 [Try ChipaEditor - Our AI-Powered Code Editor](https://chipaeditor.com/?utm_source=github&utm_medium=docs&utm_campaign=binomo_api&utm_term=best_practices&utm_content=header) <br>
-donate in paypal: [Paypal.me](https://paypal.me/ChipaCL?country.x=CL&locale.x=en_US) <br> 
-help us in patreon: [Patreon](https://patreon.com/VigoDEV?utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_creator&utm_content=copyLink) <br>
-👉 [Join us on Discord](https://discord.gg/p7YyFqSmAz) <br>
-[Get our services here](https://https://chipatrade.com/shop/) <br>
-[Let us create your bot here](https://chipatrade.com/services/bot-development) <br>
-[Contact us in Telegram](https://t.me/ChipaDevTeam)
+# Best practices for Binomo trading bots
+{: .no_toc }
 
-Essential guidelines and best practices for using BinomoAPI in production environments.
+A good strategy can be wiped out by a bot that crashes, leaks a password or trades without limits. These practices keep your bot safe.
+{: .fs-5 .fw-300 }
 
-## 🏗️ Project Structure
+1. TOC
+{:toc}
 
-### Recommended Structure
+---
 
-```
-your_project/
-├── config/
-│   ├── __init__.py
-│   ├── settings.py        # Configuration
-│   └── logging.py        # Logging setup
-├── strategies/
-│   ├── __init__.py
-│   ├── base.py           # Base strategy class
-│   └── implementations/  # Strategy implementations
-├── utils/
-│   ├── __init__.py
-│   ├── analysis.py      # Analysis utilities
-│   └── validation.py    # Input validation
-├── services/
-│   ├── __init__.py
-│   ├── trading.py       # Trading service
-│   └── monitoring.py    # Monitoring service
-├── tests/
-│   ├── __init__.py
-│   ├── test_trading.py
-│   └── test_strategies.py
-├── main.py              # Entry point
-└── requirements.txt     # Dependencies
-```
+## Risk management
 
-## 🚀 Code Organization
+- **Start on demo, stay there until the numbers say otherwise.** Run every new strategy for hundreds of demo trades before you risk real money.
+- **Use a fixed, small stake.** A common rule is no more than 1–2% of your balance per trade.
+- **Set hard stops in code:** a maximum number of trades per session, a daily loss limit and a minimum balance. See the [signal bot example](examples#signal-bot-with-risk-limits).
+- **Avoid martingale** (doubling after a loss). A short losing streak can wipe out the account.
+- **Check your balance yourself before each trade.** Compare `balance.amount * 100` with your stake, which is in minor units.
 
-### Clean Code Structure
+{: .warning }
+> Binary options are high-risk. Most retail traders lose money. Nothing in this library or its docs is financial advice.
 
-```python
-from BinomoAPI import BinomoAPI
-from typing import Optional, Dict, Any
+## Credentials and security
 
-class TradingService:
-    """
-    Professional trading service implementation.
-    """
-    
-    def __init__(
-        self,
-        api: BinomoAPI,
-        config: Dict[str, Any]
-    ):
-        self.api = api
-        self.config = config
-    
-    async def execute_trade(
-        self,
-        asset: str,
-        direction: str,
-        amount: float,
-        duration: int
-    ) -> Dict[str, Any]:
-        """
-        Execute a trade with proper validation.
-        
-        Args:
-            asset: Asset to trade
-            direction: Trade direction (CALL/PUT)
-            amount: Trade amount
-            duration: Option duration in seconds
-            
-        Returns:
-            Dict containing trade result
-            
-        Raises:
-            TradeError: If trade execution fails
-        """
-        # Implementation
-```
+- Load credentials from environment variables or a `.env` file, and **never commit them**. Add `.env` to `.gitignore`.
+- Treat the auth token like a password. Debug logs and the login console output contain it.
+- Redact tokens and cookies before you share logs in issues or on Discord.
+- Use a separate device ID per bot so sessions don't clash.
 
-## 🛡️ Security Best Practices
+## Session and connection handling
 
-### Credential Management
+- Create the client with **`create_from_login()`** so the authenticated session is reused.
+- Use **`async with`** so the WebSocket is always closed, even after an exception.
+- Call **`await api.connect()`** once at startup so your first trade isn't delayed.
+- For bots that run for hours, catch `AuthenticationError` and **log in again** ([example](error-handling#re-login-when-the-session-expires)).
+- Retry network errors with **exponential backoff**, never in a tight loop ([example](error-handling#retry-with-exponential-backoff)).
 
-```python
-import os
-from dotenv import load_dotenv
+## Trading mechanics
 
-def get_credentials():
-    """
-    Secure credential management.
-    """
-    load_dotenv()
-    
-    email = os.getenv("BINOMO_EMAIL")
-    password = os.getenv("BINOMO_PASSWORD")
-    
-    if not email or not password:
-        raise ValueError(
-            "Missing required credentials"
-        )
-    
-    return email, password
-```
+- **Pass RIC codes** (`"EURO"`), not display names (`"EUR/USD"`). See the [Asset List](assets).
+- **Prefer OTC assets for testing.** They're open 24/7.
+- **Mind expiry alignment.** A 60-second trade expires on the next whole minute that is at least 30 seconds away. [Details](trading#how-expiry-time-is-calculated).
+- **Send orders sequentially** over one client rather than in parallel.
+- `"submitted"` means sent, not accepted or won. Check the result on Binomo.
 
-### Session Management
-
-```python
-import asyncio
-from datetime import datetime, timedelta
-
-class SessionManager:
-    def __init__(self, api: BinomoAPI):
-        self.api = api
-        self.last_activity = datetime.now()
-        self.session_timeout = timedelta(hours=1)
-    
-    async def check_session(self):
-        """
-        Ensure session is valid.
-        """
-        if datetime.now() - self.last_activity > self.session_timeout:
-            await self.refresh_session()
-        
-        self.last_activity = datetime.now()
-    
-    async def refresh_session(self):
-        """
-        Refresh authentication.
-        """
-        # Implementation
-```
-
-## 📊 Error Handling
-
-### Professional Error Management
+## Logging and monitoring
 
 ```python
 import logging
-from contextlib import contextmanager
-from typing import Generator
-
-@contextmanager
-def error_boundary(
-    operation: str
-) -> Generator[None, None, None]:
-    """
-    Professional error boundary implementation.
-    """
-    try:
-        yield
-    except Exception as e:
-        logging.error(
-            f"Error in {operation}: {str(e)}"
-        )
-        raise
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    handlers=[logging.FileHandler("bot.log"), logging.StreamHandler()],
+)
 ```
 
-## 🔍 Logging
+Log every trade receipt (`ref`, asset, direction, amount, time) so you can match it against your Binomo history later.
 
-### Structured Logging
+## Respect the platform
 
-```python
-import logging
-import json
-from datetime import datetime
-
-class StructuredLogger:
-    def __init__(self, name: str):
-        self.logger = logging.getLogger(name)
-        self.setup_logging()
-    
-    def setup_logging(self):
-        """
-        Setup structured logging.
-        """
-        handler = logging.FileHandler('trading.log')
-        handler.setFormatter(
-            logging.Formatter(
-                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-            )
-        )
-        self.logger.addHandler(handler)
-        self.logger.setLevel(logging.INFO)
-    
-    def log_trade(self, trade_data: dict):
-        """
-        Log trade information.
-        """
-        log_entry = {
-            "timestamp": datetime.now().isoformat(),
-            "type": "trade",
-            "data": trade_data
-        }
-        self.logger.info(json.dumps(log_entry))
-```
-
-## 🚦 Rate Limiting
-
-### Professional Rate Limiting
-
-```python
-import asyncio
-from datetime import datetime, timedelta
-
-class RateLimiter:
-    def __init__(
-        self,
-        max_requests: int,
-        time_window: int
-    ):
-        self.max_requests = max_requests
-        self.time_window = time_window
-        self.requests = []
-    
-    async def acquire(self):
-        """
-        Acquire rate limit token.
-        """
-        now = datetime.now()
-        
-        # Remove old requests
-        self.requests = [
-            req_time for req_time in self.requests
-            if now - req_time < timedelta(seconds=self.time_window)
-        ]
-        
-        if len(self.requests) >= self.max_requests:
-            # Wait for next available slot
-            sleep_time = (
-                self.requests[0] +
-                timedelta(seconds=self.time_window) -
-                now
-            ).total_seconds()
-            await asyncio.sleep(sleep_time)
-        
-        self.requests.append(now)
-```
-
-## 🔄 Resource Management
-
-### Connection Pool
-
-```python
-from typing import List
-import aiohttp
-
-class ConnectionPool:
-    def __init__(self, size: int = 10):
-        self.size = size
-        self.connections: List[aiohttp.ClientSession] = []
-    
-    async def get_connection(self):
-        """
-        Get available connection.
-        """
-        if not self.connections:
-            return await self.create_connection()
-        return self.connections.pop()
-    
-    async def release_connection(
-        self,
-        connection: aiohttp.ClientSession
-    ):
-        """
-        Release connection back to pool.
-        """
-        if len(self.connections) < self.size:
-            self.connections.append(connection)
-        else:
-            await connection.close()
-    
-    async def create_connection(self):
-        """
-        Create new connection.
-        """
-        return aiohttp.ClientSession()
-```
-
-## 📈 Performance Optimization
-
-### Caching
-
-```python
-from functools import lru_cache
-from typing import Any, Dict
-
-class Cache:
-    def __init__(self, maxsize: int = 100):
-        self.maxsize = maxsize
-        self._cache: Dict[str, Any] = {}
-    
-    @lru_cache(maxsize=100)
-    def get_asset_info(self, asset: str) -> Dict:
-        """
-        Cached asset information.
-        """
-        # Implementation
-```
-
-### Batch Processing
-
-```python
-from typing import List, Dict
-
-class BatchProcessor:
-    def __init__(self, api: BinomoAPI):
-        self.api = api
-        self.batch_size = 10
-        self.queue: List[Dict] = []
-    
-    async def add_to_batch(self, operation: Dict):
-        """
-        Add operation to batch.
-        """
-        self.queue.append(operation)
-        
-        if len(self.queue) >= self.batch_size:
-            await self.process_batch()
-    
-    async def process_batch(self):
-        """
-        Process queued operations.
-        """
-        if not self.queue:
-            return
-        
-        batch = self.queue[:self.batch_size]
-        self.queue = self.queue[self.batch_size:]
-        
-        # Process batch
-        # Implementation
-```
-
-## 🔍 Monitoring
-
-### Health Checks
-
-```python
-import asyncio
-from datetime import datetime
-
-class HealthMonitor:
-    def __init__(self, api: BinomoAPI):
-        self.api = api
-        self.last_check = datetime.now()
-    
-    async def check_health(self):
-        """
-        Comprehensive health check.
-        """
-        try:
-            # Check API connection
-            await self.api.get_balance()
-            
-            # Check WebSocket
-            await self.api.ws_client.ping()
-            
-            # Update status
-            self.last_check = datetime.now()
-            return True
-            
-        except Exception as e:
-            logging.error(f"Health check failed: {e}")
-            return False
-```
-
-### Performance Monitoring
-
-```python
-import time
-from typing import Callable, Any
-
-class PerformanceMonitor:
-    def __init__(self):
-        self.metrics = {}
-    
-    async def measure(
-        self,
-        name: str,
-        func: Callable,
-        *args,
-        **kwargs
-    ) -> Any:
-        """
-        Measure function performance.
-        """
-        start = time.time()
-        try:
-            result = await func(*args, **kwargs)
-            duration = time.time() - start
-            
-            self.update_metrics(name, duration)
-            return result
-            
-        except Exception as e:
-            duration = time.time() - start
-            self.update_metrics(name, duration, error=True)
-            raise
-    
-    def update_metrics(
-        self,
-        name: str,
-        duration: float,
-        error: bool = False
-    ):
-        """
-        Update performance metrics.
-        """
-        if name not in self.metrics:
-            self.metrics[name] = {
-                "count": 0,
-                "total_time": 0,
-                "errors": 0
-            }
-        
-        self.metrics[name]["count"] += 1
-        self.metrics[name]["total_time"] += duration
-        if error:
-            self.metrics[name]["errors"] += 1
-```
-
-Remember to always follow these best practices for reliable and maintainable code!
+Automated trading may be restricted by Binomo's terms of service, and that is your responsibility. Keep request rates reasonable: the 5-minute balance cache exists for a reason.

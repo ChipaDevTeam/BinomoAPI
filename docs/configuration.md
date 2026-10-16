@@ -129,12 +129,3 @@ api = BinomoAPI.create_from_login(
     enable_logging=config.get("api", "enable_logging"),
 )
 ```
-
-## Docker
-
-The repo includes a [`Dockerfile`](https://github.com/ChipaDevTeam/BinomoAPI/blob/main/Dockerfile). Pass credentials at runtime instead of baking them into the image:
-
-```bash
-docker build -t binomo-bot .
-docker run --env-file .env binomo-bot
-```
