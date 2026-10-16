@@ -1,407 +1,199 @@
-# Examples
+---
+title: Examples
+description: Copy-paste Python examples for Binomo trading bots built with BinomoAPI, including scheduled trades, signal bots with stop-loss limits, multi-asset trading and asset discovery.
+nav_order: 5
+redirect_from:
+  - /advanced-usage
+  - /advanced-usage.html
+---
 
-## Support
-🚀 [Try ChipaEditor - Our AI-Powered Code Editor](https://chipaeditor.com/?utm_source=github&utm_medium=docs&utm_campaign=binomo_api&utm_term=examples&utm_content=header) <br>
-donate in paypal: [Paypal.me](https://paypal.me/ChipaCL?country.x=CL&locale.x=en_US) <br> 
-help us in patreon: [Patreon](https://patreon.com/VigoDEV?utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_creator&utm_content=copyLink) <br>
-👉 [Join us on Discord](https://discord.gg/p7YyFqSmAz) <br>
-[Get our services here](https://https://chipatrade.com/shop/) <br>
-[Let us create your bot here](https://chipatrade.com/services/bot-development) <br>
-[Contact us in Telegram](https://t.me/ChipaDevTeam)
+# Binomo trading bot examples
+{: .no_toc }
 
-Collection of practical examples and code snippets for BinomoAPI.
+Complete scripts you can run as they are. Each one uses the **demo account**. Put `BINOMO_EMAIL` and `BINOMO_PASSWORD` in a `.env` file first, as described in [Getting Started](getting-started#2-store-your-credentials-safely).
+{: .fs-5 .fw-300 }
 
-## 🚀 Basic Examples
+1. TOC
+{:toc}
 
-### Simple Trading Bot
+---
 
-```python
-import asyncio
-from BinomoAPI import BinomoAPI, AuthenticationError
-
-async def simple_trading_bot():
-    try:
-        # Login
-        login_response = BinomoAPI.login(
-            "your_email@example.com",
-            "your_password"
-        )
-        
-        async with BinomoAPI(
-            auth_token=login_response.authtoken,
-            device_id=login_response.user_id,
-            demo=True
-        ) as api:
-            # Check balance
-            balance = await api.get_balance()
-            print(f"Starting balance: ${balance.amount}")
-            
-            # Place a trade
-            if balance.amount >= 1.0:
-                result = await api.place_call_option(
-                    asset="EUR/USD",
-                    duration_seconds=60,
-                    amount=1.0
-                )
-                print(f"Trade result: {result}")
-    
-    except AuthenticationError as e:
-        print(f"Login failed: {e}")
-
-if __name__ == "__main__":
-    asyncio.run(simple_trading_bot())
-```
-
-### Multi-Asset Monitor
+## List every asset (no login)
 
 ```python
-import asyncio
-import logging
 from BinomoAPI import BinomoAPI
 
-async def monitor_multiple_assets():
-    login_response = BinomoAPI.login(
-        "your_email@example.com",
-        "your_password"
-    )
-    
-    async with BinomoAPI(
-        auth_token=login_response.authtoken,
-        device_id=login_response.user_id,
-        demo=True,
-        enable_logging=True
-    ) as api:
-        # Get all assets
-        assets = api.get_available_assets()
-        
-        # Monitor specific pairs
-        target_pairs = ["EUR/USD", "GBP/USD", "USD/JPY"]
-        
-        for asset in assets:
-            if asset.name in target_pairs and asset.is_active:
-                print(f"Monitoring {asset.name}")
-                # Add your monitoring logic here
-
-if __name__ == "__main__":
-    asyncio.run(monitor_multiple_assets())
+for asset in BinomoAPI.get_assets():
+    tag = "OTC" if asset.is_otc else "   "
+    print(f"{tag}  {asset.name.strip():<16} {asset.ric}")
 ```
 
-## 🔄 Advanced Examples
-
-### Professional Trading Bot
+## Check demo and real balances
 
 ```python
-import asyncio
-import logging
-from datetime import datetime
+import asyncio, os
+from dotenv import load_dotenv
 from BinomoAPI import BinomoAPI
-from BinomoAPI.exceptions import (
-    AuthenticationError,
-    TradeError,
-    InsufficientBalanceError
-)
 
-class TradingBot:
-    def __init__(self, email: str, password: str):
-        self.email = email
-        self.password = password
-        self.setup_logging()
-    
-    def setup_logging(self):
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler('trading_bot.log'),
-                logging.StreamHandler()
-            ]
-        )
-    
-    async def initialize_api(self):
+load_dotenv()
+
+async def main():
+    login = BinomoAPI.login(os.environ["BINOMO_EMAIL"], os.environ["BINOMO_PASSWORD"])
+    async with BinomoAPI.create_from_login(login) as api:
+        for account in ("demo", "real"):
+            b = await api.get_balance(account)
+            print(f"{account:>4}: {b.amount:,.2f} {b.currency}")
+
+asyncio.run(main())
+```
+
+## Place one CALL and one PUT
+
+```python
+import asyncio, os
+from dotenv import load_dotenv
+from BinomoAPI import BinomoAPI, TradeError
+
+load_dotenv()
+
+async def main():
+    login = BinomoAPI.login(os.environ["BINOMO_EMAIL"], os.environ["BINOMO_PASSWORD"])
+    async with BinomoAPI.create_from_login(login, demo=True) as api:
         try:
-            login_response = BinomoAPI.login(
-                self.email,
-                self.password
-            )
-            logging.info("Login successful")
-            
-            return BinomoAPI(
-                auth_token=login_response.authtoken,
-                device_id=login_response.user_id,
-                demo=True,
-                enable_logging=True
-            )
-        except AuthenticationError as e:
-            logging.error(f"Login failed: {e}")
-            raise
-    
-    async def check_trading_conditions(self, api: BinomoAPI):
-        # Get balance
-        balance = await api.get_balance()
-        logging.info(f"Current balance: ${balance.amount}")
-        
-        # Check if we can trade
-        if balance.amount < 1.0:
-            raise InsufficientBalanceError(
-                "Balance too low for trading"
-            )
-        
-        # Get asset status
-        assets = api.get_available_assets()
-        target_asset = next(
-            (a for a in assets if a.name == "EUR/USD"),
-            None
-        )
-        
-        if not target_asset or not target_asset.is_active:
-            raise TradeError("Target asset not available")
-        
-        return True
-    
-    async def execute_trade_strategy(self, api: BinomoAPI):
-        try:
-            # Validate conditions
-            await self.check_trading_conditions(api)
-            
-            # Place trade
-            result = await api.place_call_option(
-                asset="EUR/USD",
-                duration_seconds=60,
-                amount=1.0
-            )
-            
-            logging.info(f"Trade executed: {result}")
-            return result
-            
-        except InsufficientBalanceError as e:
-            logging.error(f"Balance error: {e}")
+            up = await api.place_call_option("Z-EUR/USD", 60, 100)
+            down = await api.place_put_option("Z-GBP/USD", 60, 100)
+            print(up, down, sep="\n")
         except TradeError as e:
-            logging.error(f"Trade error: {e}")
-        except Exception as e:
-            logging.error(f"Unexpected error: {e}")
-    
-    async def run(self):
-        try:
-            async with await self.initialize_api() as api:
-                while True:
-                    current_time = datetime.now().strftime(
-                        "%H:%M:%S"
-                    )
-                    logging.info(
-                        f"Running trading cycle at {current_time}"
-                    )
-                    
-                    await self.execute_trade_strategy(api)
-                    
-                    # Wait before next cycle
-                    await asyncio.sleep(60)
-        
-        except KeyboardInterrupt:
-            logging.info("Bot stopped by user")
-        except Exception as e:
-            logging.error(f"Bot error: {e}")
+            print("Trade failed:", e)
 
-if __name__ == "__main__":
-    bot = TradingBot(
-        email="your_email@example.com",
-        password="your_password"
-    )
-    asyncio.run(bot.run())
+asyncio.run(main())
 ```
 
-### Market Analysis Bot
+## Trade at the start of every minute
+
+60-second trades expire on minute boundaries (see [how expiry works](trading#how-expiry-time-is-calculated)). Sending right after the minute ticks over gives you the longest, most consistent holding time.
 
 ```python
-import asyncio
-import logging
-from typing import Dict, List
+import asyncio, os, time
+from dotenv import load_dotenv
 from BinomoAPI import BinomoAPI
 
-class MarketAnalyzer:
-    def __init__(self, api: BinomoAPI):
-        self.api = api
-        self.assets: List[str] = [
-            "EUR/USD",
-            "GBP/USD",
-            "USD/JPY"
-        ]
-        self.analysis: Dict = {}
-    
-    async def analyze_asset(self, asset: str):
-        """
-        Implement your market analysis logic here.
-        This is a placeholder implementation.
-        """
-        # Get asset data
-        ric = self.api.get_asset_ric(asset)
-        
-        # Your analysis logic here
-        analysis_result = {
-            "asset": asset,
-            "ric": ric,
-            "timestamp": datetime.now().isoformat(),
-            "signal": "NEUTRAL"
-        }
-        
-        self.analysis[asset] = analysis_result
-        return analysis_result
-    
-    async def analyze_all_assets(self):
-        tasks = []
-        for asset in self.assets:
-            tasks.append(self.analyze_asset(asset))
-        
-        results = await asyncio.gather(*tasks)
-        return results
+load_dotenv()
 
-async def run_market_analysis():
-    login_response = BinomoAPI.login(
-        "your_email@example.com",
-        "your_password"
-    )
-    
-    async with BinomoAPI(
-        auth_token=login_response.authtoken,
-        device_id=login_response.user_id,
-        demo=True
-    ) as api:
-        analyzer = MarketAnalyzer(api)
-        results = await analyzer.analyze_all_assets()
-        
-        for result in results:
-            print(f"Analysis for {result['asset']}: {result}")
+async def wait_for_next_minute(offset: float = 1.0) -> None:
+    await asyncio.sleep(60 - (time.time() % 60) + offset)
 
-if __name__ == "__main__":
-    asyncio.run(run_market_analysis())
+async def main():
+    login = BinomoAPI.login(os.environ["BINOMO_EMAIL"], os.environ["BINOMO_PASSWORD"])
+    async with BinomoAPI.create_from_login(login, demo=True) as api:
+        for _ in range(5):
+            await wait_for_next_minute()
+            print(await api.place_call_option("Z-EUR/USD", 60, 100))
+
+asyncio.run(main())
 ```
 
-## 📊 Data Analysis Examples
+## Signal bot with risk limits
 
-### Historical Data Analysis
+A template for any strategy: plug your own logic into `get_signal()`. The bot enforces a fixed stake, a maximum number of trades and a minimum balance. These limits matter more than the strategy.
 
 ```python
-import asyncio
-import pandas as pd
+import asyncio, os, random, time
+from typing import Optional
+from dotenv import load_dotenv
+from BinomoAPI import BinomoAPI, BinomoAPIException
+
+load_dotenv()
+
+ASSET = "Z-EUR/USD"
+STAKE = 100              # 1.00 in minor units
+MAX_TRADES = 20
+MIN_BALANCE = 50.00      # stop when the balance falls below this (major units)
+
+def get_signal() -> Optional[str]:
+    """Return 'call', 'put' or None. Replace with your strategy."""
+    return random.choice(["call", "put", None])
+
+async def main():
+    login = BinomoAPI.login(os.environ["BINOMO_EMAIL"], os.environ["BINOMO_PASSWORD"])
+    async with BinomoAPI.create_from_login(login, demo=True) as api:
+        trades = 0
+        while trades < MAX_TRADES:
+            balance = await api.get_balance()
+            if balance.amount < MIN_BALANCE:
+                print("Balance below limit, stopping.")
+                break
+
+            signal = get_signal()
+            if signal is None:
+                await asyncio.sleep(5)
+                continue
+
+            try:
+                place = api.place_call_option if signal == "call" else api.place_put_option
+                result = await place(ASSET, 60, STAKE)
+                trades += 1
+                print(f"[{time.strftime('%H:%M:%S')}] #{trades} {signal.upper()} {result['status']}")
+            except BinomoAPIException as e:
+                print("Error, backing off:", e)
+                await asyncio.sleep(10)
+
+            await asyncio.sleep(60)  # one trade per minute
+
+asyncio.run(main())
+```
+
+## Trade several assets at once
+
+```python
+import asyncio, os
+from dotenv import load_dotenv
 from BinomoAPI import BinomoAPI
 
-async def analyze_historical_data():
-    login_response = BinomoAPI.login(
-        "your_email@example.com",
-        "your_password"
-    )
-    
-    async with BinomoAPI(
-        auth_token=login_response.authtoken,
-        device_id=login_response.user_id,
-        demo=True
-    ) as api:
-        # Get historical data
-        data = await api.get_historical_data(
-            asset="EUR/USD",
-            timeframe="1h",
-            count=100
-        )
-        
-        # Convert to pandas DataFrame
-        df = pd.DataFrame(data)
-        
-        # Calculate indicators
-        df['SMA20'] = df['close'].rolling(window=20).mean()
-        df['SMA50'] = df['close'].rolling(window=50).mean()
-        
-        # Print analysis
-        print(df.tail())
+load_dotenv()
 
-if __name__ == "__main__":
-    asyncio.run(analyze_historical_data())
+ORDERS = [
+    ("Z-EUR/USD", "call"),
+    ("Z-GBP/USD", "put"),
+    ("Z-USD/JPY", "call"),
+]
+
+async def main():
+    login = BinomoAPI.login(os.environ["BINOMO_EMAIL"], os.environ["BINOMO_PASSWORD"])
+    async with BinomoAPI.create_from_login(login, demo=True) as api:
+        await api.connect()  # open the WebSocket once, up front
+        for ric, direction in ORDERS:
+            place = api.place_call_option if direction == "call" else api.place_put_option
+            print(ric, direction, await place(ric, 60, 100))
+
+asyncio.run(main())
 ```
 
-### Real-time Analysis
+## Read the server's replies
+
+Binomo answers trade orders asynchronously on the WebSocket. Until a public results API lands, you can inspect the raw replies:
 
 ```python
-import asyncio
-from BinomoAPI import BinomoAPI
-
-async def analyze_realtime_data():
-    login_response = BinomoAPI.login(
-        "your_email@example.com",
-        "your_password"
-    )
-    
-    async with BinomoAPI(
-        auth_token=login_response.authtoken,
-        device_id=login_response.user_id,
-        demo=True
-    ) as api:
-        async def on_price_update(data):
-            # Implement your real-time analysis here
-            print(f"New price data: {data}")
-        
-        # Subscribe to price updates
-        await api.ws_client.subscribe(["price_feed"])
-        api.ws_client.on_price_update = on_price_update
-        
-        # Keep running
-        while True:
-            await asyncio.sleep(1)
-
-if __name__ == "__main__":
-    asyncio.run(analyze_realtime_data())
+trade = await api.place_call_option("Z-CRY/IDX", 60, 100)
+await asyncio.sleep(3)
+for msg in api._ws_client._last_messages:
+    print(msg)
 ```
 
-## 🔧 Utility Examples
-
-### Configuration Management
+## Load settings from the environment
 
 ```python
-from BinomoAPI.config_manager import get_config
+from BinomoAPI.config_manager import BinomoConfig
 
-def setup_trading_config():
-    config = get_config()
-    
-    # Set trading parameters
-    config.set("trading", "max_trade_amount", 100.0)
-    config.set("trading", "risk_percentage", 2.0)
-    
-    # Set technical parameters
-    config.set("technical", "ma_period", 14)
-    config.set("technical", "rsi_period", 14)
-    
-    # Save configuration
-    config.save()
-
-if __name__ == "__main__":
-    setup_trading_config()
+config = BinomoConfig()              # reads binomo_config.json and BINOMO_* env vars
+email, password = config.get_credentials()
+stake_limit = config.get("trading", "max_trade_amount")
+check = config.validate_trade_params(amount=5.0)
+print(check)   # {'valid': True, 'errors': [], 'warnings': []}
 ```
 
-### Logging Setup
+See [Configuration](configuration) for every option.
 
-```python
-import logging
+---
 
-def setup_trading_logs():
-    # Create formatters
-    detailed_formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    
-    # File handler
-    file_handler = logging.FileHandler('trading.log')
-    file_handler.setFormatter(detailed_formatter)
-    
-    # Error handler
-    error_handler = logging.FileHandler('errors.log')
-    error_handler.setLevel(logging.ERROR)
-    error_handler.setFormatter(detailed_formatter)
-    
-    # Configure root logger
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-    logger.addHandler(file_handler)
-    logger.addHandler(error_handler)
-
-if __name__ == "__main__":
-    setup_trading_logs()
-```
-
-Remember to replace the email/password placeholders with your actual credentials and always test on a demo account first!
+Built something cool? **Share it in [Discord](https://discord.gg/p7YyFqSmAz)** or open a pull request to add it to [`examples/`](https://github.com/ChipaDevTeam/BinomoAPI/tree/main/examples). If you'd rather have a bot built for you, [the team builds custom bots](https://chipatrade.com/services/bot-development).
