@@ -73,7 +73,7 @@ That's the whole loop: **log in, open a client, check the balance, trade.** Ever
 
 ## Join the community
 
-BinomoAPI is built in the open by [ChipaDevTeam](https://github.com/ChipaDevTeam). Hundreds of traders and developers share strategies, bots and fixes in our community:
+BinomoAPI is built in the open by [ChipaDevTeam](https://github.com/ChipaDevTeam). Traders and developers share strategies, bots and fixes in our community:
 
 - 💬 **[Discord](https://discord.gg/p7YyFqSmAz)**: get help, show off your bot, follow releases
 - ✈️ **[Telegram](https://t.me/ChipaDevTeam)**: talk to the team directly

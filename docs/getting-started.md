@@ -1,170 +1,136 @@
-# Getting Started with BinomoAPI
+---
+title: Getting Started
+description: Install the BinomoAPI Python package, log in to Binomo, check your demo balance and place your first automated trade, step by step.
+nav_order: 2
+---
 
-## Support
-🚀 [Try ChipaEditor - Our AI-Powered Code Editor](https://chipaeditor.com/?utm_source=github&utm_medium=docs&utm_campaign=binomo_api&utm_term=getting_started&utm_content=header) <br>
-donate in paypal: [Paypal.me](https://paypal.me/ChipaCL?country.x=CL&locale.x=en_US) <br> 
-help us in patreon: [Patreon](https://patreon.com/VigoDEV?utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_creator&utm_content=copyLink) <br>
-👉 [Join us on Discord](https://discord.gg/p7YyFqSmAz) <br>
-[Get our services here](https://https://chipatrade.com/shop/) <br>
-[Let us create your bot here](https://chipatrade.com/services/bot-development) <br>
-[Contact us in Telegram](https://t.me/ChipaDevTeam)
+# Getting started with BinomoAPI
+{: .no_toc }
 
-## 📦 Installation
+In about five minutes you'll install the library, log in to your Binomo account from Python, read your demo balance and place your first automated trade.
+{: .fs-5 .fw-300 }
 
-### Prerequisites
+1. TOC
+{:toc}
 
-- Python 3.7 or higher
-- pip (Python package manager)
-- A Binomo trading account
+---
 
-### Install from PyPI
+## Requirements
+
+- **Python 3.8 or newer**
+- A **Binomo account** that signs in with email and password. Accounts created through Google or Facebook need a password set first.
+- Basic familiarity with `async`/`await`. If that's new to you, copy the examples as they are; they run unchanged.
+
+## 1. Install
 
 ```bash
 pip install BinomoAPI
 ```
 
-### Install from Source
+Or install the latest code from GitHub:
 
 ```bash
-git clone https://github.com/yourname/BinomoAPI.git
-cd BinomoAPI
-pip install -e .
+pip install git+https://github.com/ChipaDevTeam/BinomoAPI.git
 ```
 
-## 🔑 Basic Setup
-
-### Environment Variables
-
-Set up your credentials securely using environment variables:
+We recommend a virtual environment:
 
 ```bash
-export BINOMO_EMAIL="your_email@example.com"
-export BINOMO_PASSWORD="your_password"
-export BINOMO_DEMO_MODE="true"  # Use demo account by default
+python -m venv .venv
+source .venv/bin/activate      # Windows: .venv\Scripts\activate
+pip install BinomoAPI python-dotenv
 ```
 
-### Configuration File
+## 2. Store your credentials safely
 
-Create a `binomo_config.json` file (optional):
+Never hard-code your password. Create a `.env` file next to your script, and add it to `.gitignore`:
 
-```json
-{
-  "api": {
-    "demo_mode": true,
-    "enable_logging": true,
-    "log_level": "INFO"
-  },
-  "trading": {
-    "default_asset": "EUR/USD",
-    "min_trade_amount": 1.0,
-    "max_trade_amount": 100.0,
-    "risk_percentage": 2.0
-  }
-}
+```ini
+BINOMO_EMAIL=you@example.com
+BINOMO_PASSWORD=your-password
 ```
 
-## 🚀 Your First Trade
+## 3. Log in
 
-Here's a complete example of making your first trade:
+```python
+import os
+from dotenv import load_dotenv
+from BinomoAPI import BinomoAPI
+
+load_dotenv()
+
+login = BinomoAPI.login(os.environ["BINOMO_EMAIL"], os.environ["BINOMO_PASSWORD"])
+print("Logged in as user", login.user_id)
+```
+
+`BinomoAPI.login()` is a regular (synchronous) function. It returns a [`LoginResponse`](api-reference#loginresponse) that holds your auth token and the HTTP session Binomo just authenticated.
+
+{: .note }
+> The login call currently prints diagnostic output, including session cookies, to the console. Don't run it where other people can read your logs.
+
+## 4. Create a client and check your balance
+
+Use `BinomoAPI.create_from_login()` to build the client. It reuses the logged-in session, which is the most reliable way to stay authenticated:
 
 ```python
 import asyncio
-from BinomoAPI import BinomoAPI, AuthenticationError, TradeError
 
 async def main():
-    try:
-        # Login to get authentication data
-        login_response = BinomoAPI.login(
-            "your_email@example.com",
-            "your_password"
-        )
-        print(f"Login successful! User ID: {login_response.user_id}")
-        
-        # Initialize API client
-        async with BinomoAPI(
-            auth_token=login_response.authtoken,
-            device_id=login_response.user_id,
-            demo=True,  # Use demo account
-            enable_logging=True
-        ) as api:
-            # Check balance
-            balance = await api.get_balance()
-            print(f"Demo account balance: ${balance.amount}")
-            
-            # Place a trade
-            if balance.amount >= 1.0:
-                result = await api.place_call_option(
-                    asset="EUR/USD",
-                    duration_seconds=60,
-                    amount=1.0
-                )
-                print(f"Trade placed successfully: {result}")
-            else:
-                print("Insufficient balance for trading")
-                
-    except AuthenticationError as e:
-        print(f"Login failed: {e}")
-    except TradeError as e:
-        print(f"Trade failed: {e}")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+    login = BinomoAPI.login(os.environ["BINOMO_EMAIL"], os.environ["BINOMO_PASSWORD"])
 
-if __name__ == "__main__":
-    asyncio.run(main())
+    async with BinomoAPI.create_from_login(login, demo=True) as api:
+        balance = await api.get_balance()
+        print(f"{balance.account_type} balance: {balance.amount:.2f} {balance.currency}")
+
+asyncio.run(main())
 ```
 
-## 📊 Understanding Results
+The `async with` block opens the client and closes the WebSocket connection when you're done, even if an error occurs.
 
-### Login Response
+## 5. Place your first trade
 
-The `login_response` object contains:
-- `authtoken`: Authentication token for API calls
-- `user_id`: Your unique user identifier
+Trades are placed by **RIC code**, Binomo's internal identifier for each asset. EUR/USD is `EURO`, EUR/USD (OTC) is `Z-EUR/USD`, Bitcoin is `XBT/USD`. The full table is on the [Asset List](assets).
 
-### Balance Information
+```python
+async with BinomoAPI.create_from_login(login, demo=True) as api:
+    trade = await api.place_call_option(
+        asset="Z-EUR/USD",    # EUR/USD (OTC), open 24/7
+        duration_seconds=60,  # 1-minute expiry
+        amount=100,           # see "Trade amounts" below
+    )
+    print(trade)
+```
 
-The `balance` object includes:
-- `amount`: Current balance amount
-- `currency`: Currency code
-- `account_type`: "demo" or "real"
+Output:
 
-### Trade Results
+```python
+{'status': 'submitted', 'asset': 'Z-EUR/USD', 'direction': 'call',
+ 'amount': 100, 'duration': 60, 'account_type': 'demo', 'ref': '5'}
+```
 
-Trade results contain:
-- Trade ID
-- Execution status
-- Entry price
-- Expiry time
-- Potential profit
+Open Binomo in your browser and the trade appears in your demo account. 🎉
 
-## 🎯 Next Steps
+{: .tip }
+> Use an **OTC asset** while you develop. OTC markets stay open at weekends and overnight, so your test trades don't fail because a market is closed.
 
-1. Explore more [advanced trading features](./advanced-usage.md)
-2. Learn about [error handling](./error-handling.md)
-3. Check out complete [code examples](./examples.md)
-4. Read the [API reference](./api-reference.md)
+## Trade amounts
 
-## 🚨 Common Issues
+`amount` is passed to Binomo unchanged. Binomo counts money in the **smallest unit of your account currency** (cents), the same unit its balance endpoint returns before BinomoAPI divides it by 100. So `amount=100` is a 1.00 stake. Check this on your demo account before you go live.
 
-### Authentication Fails
-- Verify your credentials
-- Check network connection
-- Ensure account is active
+## Going live
 
-### Trade Execution Fails
-- Verify sufficient balance
-- Check asset availability
-- Validate trade parameters
+Pass `demo=False` to trade on your real account:
 
-### WebSocket Connection Issues
-- Check internet connection
-- Verify WebSocket endpoint
-- Ensure proper authentication
+```python
+async with BinomoAPI.create_from_login(login, demo=False) as api:
+    ...
+```
 
-## 🤝 Getting Help
+Or keep a demo client and override a single trade with `use_demo=False`. We strongly suggest you read [Trading](trading) and [Best Practices](best-practices) first.
 
-- Check the [FAQ](./faq.md)
-- Join our [Discord community](https://discord.gg/p7YyFqSmAz)
-- Open an [issue on GitHub](https://github.com/yourname/BinomoAPI/issues)
+## Next steps
 
-Remember to always use the demo account first when testing new trading strategies!
+- [Trading](trading): directions, expiry times and how Binomo aligns them
+- [Examples](examples): complete bots you can copy
+- [Error Handling](error-handling): what can fail and how to recover
+- Stuck? Ask in [Discord](https://discord.gg/p7YyFqSmAz). Someone has probably hit the same problem.
