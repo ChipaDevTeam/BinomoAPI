@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://chipadevteam.github.io/BinomoAPI/sitemap.xml

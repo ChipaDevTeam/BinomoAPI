@@ -1,127 +1,85 @@
-# BinomoAPI - Professional Python Trading Client
+---
+title: Binomo API for Python
+description: BinomoAPI is a free, open-source Python library for building Binomo trading bots. Log in, read your balance, list assets and place CALL/PUT trades in a few lines of code.
+nav_order: 1
+permalink: /
+---
 
-## Support
-🚀 [Try ChipaEditor - Our AI-Powered Code Editor](https://chipaeditor.com/?utm_source=github&utm_medium=docs&utm_campaign=binomo_api&utm_term=index&utm_content=header) <br>
-donate in paypal: [Paypal.me](https://paypal.me/ChipaCL?country.x=CL&locale.x=en_US) <br> 
-help us in patreon: [Patreon](https://patreon.com/VigoDEV?utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_creator&utm_content=copyLink) <br>
-👉 [Join us on Discord](https://discord.gg/p7YyFqSmAz) <br>
-[Get our services here](https://https://chipatrade.com/shop/) <br>
-[Let us create your bot here](https://chipatrade.com/services/bot-development) <br>
-[Contact us in Telegram](https://t.me/ChipaDevTeam)
+# Binomo API for Python
+{: .fs-9 }
 
-[![PyPI version](https://badge.fury.io/py/BinomoAPI.svg)](https://badge.fury.io/py/BinomoAPI)
-[![Python Versions](https://img.shields.io/pypi/pyversions/BinomoAPI.svg)](https://pypi.org/project/BinomoAPI/)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Documentation](https://img.shields.io/badge/docs-latest-brightgreen.svg)](https://yourname.github.io/BinomoAPI)
+Build your own Binomo trading bot in Python. BinomoAPI handles login, sessions, the WebSocket connection and trade payloads, so you can work on your strategy.
+{: .fs-6 .fw-300 }
 
-A professional, high-performance Python client for the Binomo trading platform. BinomoAPI provides a comprehensive, type-safe interface for automated trading, account management, and real-time market data analysis.
+[Get started in 5 minutes](getting-started){: .btn .btn-primary .fs-5 .mb-4 .mb-md-0 .mr-2 }
+[Join the Discord](https://discord.gg/p7YyFqSmAz){: .btn .fs-5 .mb-4 .mb-md-0 .mr-2 }
+[Star on GitHub](https://github.com/ChipaDevTeam/BinomoAPI){: .btn .fs-5 .mb-4 .mb-md-0 }
 
-## 🌟 Key Features
+[![PyPI version](https://img.shields.io/pypi/v/BinomoAPI.svg)](https://pypi.org/project/BinomoAPI/)
+[![Python versions](https://img.shields.io/pypi/pyversions/BinomoAPI.svg)](https://pypi.org/project/BinomoAPI/)
+[![Downloads](https://static.pepy.tech/badge/binomoapi)](https://pepy.tech/project/binomoapi)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/ChipaDevTeam/BinomoAPI/blob/main/LICENSE)
+[![Discord](https://img.shields.io/badge/chat-Discord-5865F2?logo=discord&logoColor=white)](https://discord.gg/p7YyFqSmAz)
 
-- **Modern Async Support**: Built with Python's async/await patterns for optimal performance
-- **Type Safety**: Full type hints and runtime validation for reliable code
-- **Professional Error Handling**: Comprehensive exception hierarchy for precise error management
-- **Secure Trading**: Robust security measures and parameter validation
-- **Real-time Data**: WebSocket-based real-time market data and trade execution
-- **Production Ready**: Enterprise-grade logging, monitoring, and configuration
-- **Developer Friendly**: Clean API design with excellent IDE support
+---
 
-## 🚀 Quick Installation
+## Install
 
 ```bash
 pip install BinomoAPI
 ```
 
-## 📊 Simple Example
+## Your first trade
 
 ```python
 import asyncio
+import os
 from BinomoAPI import BinomoAPI
 
 async def main():
-    # Login to get authentication data
-    login_response = BinomoAPI.login("your_email@example.com", "password")
-    
-    # Use the API with automatic resource management
-    async with BinomoAPI(
-        auth_token=login_response.authtoken,
-        device_id=login_response.user_id,
-        demo=True
-    ) as api:
-        # Check account balance
-        balance = await api.get_balance()
-        print(f"Current balance: ${balance.amount}")
-        
-        # Place a trade
-        result = await api.place_call_option(
-            asset="EUR/USD",
-            duration_seconds=60,
-            amount=1.0
-        )
-        print(f"Trade result: {result}")
+    login = BinomoAPI.login(os.environ["BINOMO_EMAIL"], os.environ["BINOMO_PASSWORD"])
 
-if __name__ == "__main__":
-    asyncio.run(main())
+    async with BinomoAPI.create_from_login(login, demo=True) as api:
+        balance = await api.get_balance()
+        print(f"Demo balance: {balance.amount:.2f} {balance.currency}")
+
+        # "EURO" is the RIC code for EUR/USD; see the asset list
+        trade = await api.place_call_option(asset="EURO", duration_seconds=60, amount=100)
+        print(trade)
+
+asyncio.run(main())
 ```
 
-## 📚 Documentation
+That's the whole loop: **log in, open a client, check the balance, trade.** Everything runs on your **demo account** until you pass `demo=False`.
 
-- [Getting Started Guide](./getting-started.md)
-- [API Reference](./api-reference.md)
-- [Advanced Usage Guide](./advanced-usage.md)
-- [Configuration Guide](./configuration.md)
-- [Error Handling](./error-handling.md)
-- [Best Practices](./best-practices.md)
-- [Examples](./examples.md)
-- [Migration Guide](./migration.md)
-- [Contributing Guide](./contributing.md)
+## What you can do with it
 
-## 💡 Features in Detail
+| | |
+|:--|:--|
+| **Authenticate** | Email/password login with the session kept alive for later requests. |
+| **Read balances** | Demo and real account balances, cached for 5 minutes to avoid extra requests. |
+| **Discover assets** | 52 bundled assets (forex, OTC, crypto, stocks, indices, metals), each with its RIC code. No login needed. |
+| **Trade binary options** | CALL (up) and PUT (down) turbo options over Binomo's WebSocket API. |
+| **Handle errors cleanly** | A small exception hierarchy: `AuthenticationError`, `TradeError` and more. |
+| **Use modern Python** | `async`/`await`, type hints, dataclass models and async context managers. |
 
-### Professional Trading Methods
-- Advanced order types (CALL/PUT options)
-- Real-time trade execution
-- Comprehensive trade validation
-- Multiple account support (Demo/Real)
-- Asset management utilities
+## Where to go next
 
-### Robust Error Handling
-- Custom exception hierarchy
-- Detailed error messages
-- Network resilience
-- Validation checks
-- Recovery mechanisms
+- **New here?** Start with [Getting Started](getting-started): install, log in and place a demo trade.
+- **Building a bot?** Read [Trading](trading) to learn how expiry times work, then grab code from [Examples](examples).
+- **Need an asset code?** The [Asset List](assets) has every supported asset and its RIC.
+- **Looking up a method?** See the [API Reference](api-reference).
+- **Something broke?** Try the [FAQ](faq) and [Error Handling](error-handling), or ask on [Discord](https://discord.gg/p7YyFqSmAz).
 
-### Security Features
-- Secure authentication
-- Parameter validation
-- Rate limiting support
-- Safe connection handling
-- Resource cleanup
+## Join the community
 
-### Developer Tools
-- Comprehensive logging
-- Configuration management
-- Type hints everywhere
-- IDE integration
-- Testing utilities
+BinomoAPI is built in the open by [ChipaDevTeam](https://github.com/ChipaDevTeam). Hundreds of traders and developers share strategies, bots and fixes in our community:
 
-## 🤝 Community & Support
+- 💬 **[Discord](https://discord.gg/p7YyFqSmAz)**: get help, show off your bot, follow releases
+- ✈️ **[Telegram](https://t.me/ChipaDevTeam)**: talk to the team directly
+- ⭐ **[GitHub](https://github.com/ChipaDevTeam/BinomoAPI)**: star the repo, report issues, send pull requests
 
-- [GitHub Issues](https://github.com/yourname/BinomoAPI/issues)
-- [Discord Community](https://discord.gg/p7YyFqSmAz)
-- [Documentation](https://yourname.github.io/BinomoAPI)
+More ways to get involved are on the [Community](community) page, including a bot built for you by the team.
 
-## ❤️ Support the Project
-
-- [ChipaEditor - AI Code Editor](https://chipaeditor.com/?utm_source=github&utm_medium=docs&utm_campaign=binomo_api&utm_term=index&utm_content=footer)
-- [PayPal](https://paypal.me/ChipaCL)
-- [Patreon](https://patreon.com/VigoDEV)
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
-
-## ⚠️ Disclaimer
-
-This software is for educational purposes only. Trading binary options involves significant risk. Always trade responsibly.
+{: .warning }
+> BinomoAPI is an **unofficial** library and is not affiliated with Binomo. Binary options are high-risk and you can lose your whole stake. Test on a demo account first, and only trade money you can afford to lose.
