@@ -143,7 +143,9 @@ async def main():
 asyncio.run(main())
 ```
 
-## Trade several assets at once
+## Trade several assets
+
+Orders go out one after another over a single connection, which takes milliseconds. Send them sequentially rather than with `asyncio.gather` so each order gets its own message reference.
 
 ```python
 import asyncio, os
